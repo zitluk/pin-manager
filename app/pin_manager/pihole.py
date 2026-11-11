@@ -24,6 +24,10 @@ class PiHoleClient:
             json={"password": self.settings.pihole_password},
             timeout=30.0,
         )
+        if r.status_code == 401:
+            raise RuntimeError("Pi-hole: špatné heslo (401)")
+        if r.status_code >= 400:
+            raise RuntimeError(f"Pi-hole auth {r.status_code}: {r.text[:200]}")
         r.raise_for_status()
         data = r.json()
         sid = data.get("session", {}).get("sid")
@@ -131,6 +135,19 @@ class PiHoleClient:
                 raise RuntimeError(
                     f"Pi-hole neuložil DNS záznamy: {', '.join(failed_add)}"
                 )
+
+    async def probe(self) -> dict:
+        """Rychlá kontrola dostupnosti API z kontejneru."""
+        out: dict = {"url": self.base, "ok": False}
+        try:
+            async with httpx.AsyncClient() as client:
+                sid = await self._login(client)
+                hosts = await self.get_dns_hosts(client, sid)
+                out["ok"] = True
+                out["local_dns_count"] = len(hosts)
+        except Exception as e:
+            out["error"] = str(e)
+        return out
 
     async def restart_dns(self) -> None:
         if not self.settings.pihole_restart_dns:

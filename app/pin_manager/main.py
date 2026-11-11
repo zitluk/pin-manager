@@ -29,6 +29,7 @@ from pin_manager.security import clear_attempts, is_locked, record_failed_attemp
 from pin_manager.store import get_store, _normalize_domain
 from pin_manager.sinkhole import publish_sinkhole
 from pin_manager.sync import apply_relock, apply_unlock
+from pin_manager.sync_status import read as read_sync_status
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -276,6 +277,7 @@ async def admin_dashboard(request: Request, message: str | None = None, error: s
         admin_url = f"http://{ip}:{settings.host_port}/admin/"
     else:
         admin_url = f"http://{ip}/admin/"
+    sync_st = read_sync_status()
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
@@ -287,8 +289,33 @@ async def admin_dashboard(request: Request, message: str | None = None, error: s
             "admin_url": admin_url,
             "message": message,
             "error": error,
+            "sync_status": sync_st,
+            "pihole_url": settings.pihole_url,
+            "sinkhole_mode": settings.pihole_sinkhole_mode,
         },
     )
+
+
+@app.post("/admin/sync-now")
+async def admin_sync_now(request: Request):
+    redir = _admin_redirect_if_needed(request)
+    if redir:
+        return redir
+    settings = get_settings()
+    if not settings.portal_ip:
+        return RedirectResponse("/admin/?error=Chybí+PORTAL_IP", status_code=303)
+    try:
+        await publish_sinkhole(settings.portal_ip)
+        probe = await PiHoleClient().probe()
+        if not probe.get("ok"):
+            return RedirectResponse(
+                f"/admin/?error=Sync+proběhl,+ale+API+test+selhal:+{probe.get('error', '?')}",
+                status_code=303,
+            )
+    except Exception as e:
+        logger.exception("admin sync-now")
+        return RedirectResponse(f"/admin/?error={e}", status_code=303)
+    return RedirectResponse("/admin/?message=Pi-hole+synchronizováno", status_code=303)
 
 
 @app.get("/admin/grants")
