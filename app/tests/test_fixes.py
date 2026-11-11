@@ -220,3 +220,110 @@ def test_session_secret_shared(data_dir, monkeypatch):
 
     first = get_or_create_session_secret()
     assert first and get_or_create_session_secret() == first
+
+
+# --- Bod 6: povolení se nevytvoří, když Pi-hole selže -----------------------
+
+
+@asynccontextmanager
+async def _broken_pihole():
+    raise RuntimeError("Pi-hole nedostupný")
+    yield  # pragma: no cover
+
+
+async def test_apply_unlock_rolls_back_on_pihole_failure(data_dir):
+    from pin_manager import sync
+    from pin_manager.store import get_store
+
+    store = get_store()
+    store.add_blacklist("youtube.com")
+    with patch.object(sync, "pihole_api", _broken_pihole):
+        with pytest.raises(RuntimeError):
+            await sync.apply_unlock("youtube.com", 15, "192.168.39.207")
+    assert store.is_blocked("youtube.com")
+    assert store.grant_until_raw("youtube.com") is None
+
+
+async def test_apply_unlock_keeps_previous_grant_on_failure(data_dir):
+    from pin_manager import sync
+    from pin_manager.store import get_store
+
+    store = get_store()
+    store.add_blacklist("youtube.com")
+    previous = time.time() + 300
+    store.set_grant("youtube.com", previous)
+    with patch.object(sync, "pihole_api", _broken_pihole):
+        with pytest.raises(RuntimeError):
+            await sync.apply_unlock("youtube.com", 120, "192.168.39.207")
+    assert store.grant_until_raw("youtube.com") == previous
+
+
+async def test_apply_relock_failure_leaves_expired_grant_for_retry(data_dir):
+    from pin_manager import sync
+    from pin_manager.store import get_store
+
+    store = get_store()
+    store.add_blacklist("youtube.com")
+    store.set_grant("youtube.com", time.time() + 600)
+    with patch.object(sync, "pihole_api", _broken_pihole):
+        with pytest.raises(RuntimeError):
+            await sync.apply_relock("youtube.com", "192.168.39.207")
+    # Aplikace doménu hned blokuje a plánovač relock zopakuje
+    assert store.is_blocked("youtube.com")
+    assert "youtube.com" in store.pop_expired_grants()
+
+
+# --- Bod 7: target_url jen na odemykanou doménu ------------------------------
+
+
+@pytest.mark.parametrize(
+    "target, expected",
+    [
+        ("https://www.youtube.com/watch?v=abc", "https://www.youtube.com/watch?v=abc"),
+        ("https://m.youtube.com/", "https://m.youtube.com/"),
+        ("https://evil.example/", "https://youtube.com/"),
+        ("https://youtube.com@evil.example/", "https://youtube.com/"),
+        ("https://evil.example\\@youtube.com/", "https://youtube.com/"),
+        ("javascript:alert(1)", "https://youtube.com/"),
+        ("//evil.example/", "https://youtube.com/"),
+        ("", "https://youtube.com/"),
+    ],
+)
+def test_safe_target_url(data_dir, target, expected):
+    from pin_manager.main import _safe_target_url
+    from pin_manager.store import get_store
+
+    get_store().add_blacklist("youtube.com")
+    assert _safe_target_url(target, "youtube.com") == expected
+
+
+def test_unlock_ignores_foreign_target_url(client):
+    from pin_manager.store import get_store
+
+    get_store().add_blacklist("youtube.com")
+    with patch("pin_manager.main.apply_unlock", new=AsyncMock()):
+        r = client.post(
+            "/unlock",
+            data={
+                "pin": "4242",
+                "minutes": "15",
+                "host": "youtube.com",
+                "target_url": "https://evil.example/phish",
+            },
+        )
+    assert r.status_code == 200
+    assert "evil.example" not in r.text
+
+
+# --- Bod 8: zprávy v URL jsou kódované ---------------------------------------
+
+
+def test_admin_redirect_encodes_message():
+    from urllib.parse import parse_qs, urlsplit
+
+    from pin_manager.main import _admin_redirect
+
+    r = _admin_redirect("/admin/", error="Chyba & #1 + 2=3")
+    loc = r.headers["location"]
+    assert parse_qs(urlsplit(loc).query) == {"error": ["Chyba & #1 + 2=3"]}
+    assert "#" not in loc
