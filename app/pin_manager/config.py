@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     sinkhole_silent_domains: str = ""  # env: SINKHOLE_SILENT_DOMAINS
     # NXDOMAIN pro iCloud Private Relay a Firefox DoH canary – jinak zařízení obchází Pi-hole
     block_dns_bypass: bool = True  # env: BLOCK_DNS_BYPASS
+    # Jak často pin-manager ověří/doplní pravidla v Pi-hole (po výpadku, reinstalaci)
+    pihole_resync_seconds: int = 300  # env: PIHOLE_RESYNC_SECONDS
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""

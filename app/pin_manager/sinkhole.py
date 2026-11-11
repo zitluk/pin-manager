@@ -4,21 +4,12 @@ from pathlib import Path
 from pin_manager.config import get_settings
 from pin_manager.dnsmasq_conf import write_sinkhole_conf
 from pin_manager.domain_expand import expand_sinkhole_domains, partition_apex_for_sinkhole
-from pin_manager.pihole import PiHoleClient, pihole_api
+from pin_manager.pihole import PiHoleClient, desired_pin_regex_rules, pihole_api
 from pin_manager.store import get_store
 from pin_manager.sync_status import record
 from pin_manager.tls_certs import ensure_tls_material
 
 logger = logging.getLogger(__name__)
-
-
-async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
-    for domain in domains:
-        for candidate in {domain, f"www.{domain}"}:
-            try:
-                await ph.remove_deny(candidate)
-            except Exception:
-                pass
 
 
 async def _sync_pihole_api(
@@ -29,32 +20,42 @@ async def _sync_pihole_api(
     *,
     silent_apex: list[str],
     portal_apex: list[str],
+    granted: set[str] | None = None,
 ) -> int:
-    await _clear_gravity_denies(ph, portal_hosts)
-    try:
-        # Hlavní cesta: address=/doména/PORTAL_IP – blokuje i všechny poddomény
-        await ph.sync_pin_dnsmasq_lines(portal_ip, portal_apex)
-        # Staré přesné Local DNS záznamy z předchozích verzí uklidit
-        await ph.sync_pin_dns_hosts(portal_ip, [])
-        written = len(portal_apex)
-    except Exception as e:
-        # Starší Pi-hole bez misc.dnsmasq_lines v API → aspoň přesná jména
-        logger.warning("dnsmasq_lines nejde (%s) – záložně Local DNS záznamy", e)
-        await ph.sync_pin_dns_hosts(portal_ip, portal_hosts)
-        written = len(portal_hosts)
-    # Vždy sync (i prázdný seznam) – odstraní staré pin-manager-silent deny po vypnutí tichého režimu.
-    silent_count = await ph.sync_pin_silent_block(silent_apex)
-    try:
-        regex_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
-    except Exception as e:
-        # Nesmí shodit sync (a tím odemykání PINem) – A záznamy už platí
-        logger.warning("Regex pravidla (AAAA/HTTPS/SVCB/anti-obchvat) selhala: %s", e)
-        regex_rules = 0
-    await ph.restart_dns()
-    return written + silent_count + regex_rules
+    """Zapíše blokování do Pi-hole – jen do seznamů domén přes API.
+
+    Nastavení Pi-hole (dns.hosts, dnsmasq_lines…) se nemění; po čisté reinstalaci
+    Pi-hole stačí, aby pin-manager znovu proběhl (dělá to sám každých pár minut).
+    """
+    settings = get_settings()
+    desired = desired_pin_regex_rules(
+        apex_domains,
+        anti_bypass=settings.block_dns_bypass,
+        portal_ip=portal_ip,
+        portal_apex=portal_apex,
+        silent_apex=silent_apex,
+    )
+    changed = await ph.sync_pin_regex(desired)  # selhání = sync selhal
+
+    # Úklid po starších verzích – až když nová pravidla platí, ať blok nezmizí
+    for label, step in (
+        ("Local DNS (dns.hosts)", lambda: ph.sync_pin_dns_hosts(portal_ip, [])),
+        ("tiché exact deny", lambda: ph.sync_pin_silent_block([])),
+        ("prošlá povolení", lambda: ph.sync_pin_allows(granted or set())),
+    ):
+        try:
+            changed = bool(await step()) or changed
+        except Exception as e:
+            logger.warning("Úklid %s selhal: %s", label, e)
+
+    if changed:
+        await ph.restart_dns()  # vyprázdní cache DNS, ať změna platí hned
+    return len(desired)
 
 
-async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
+def _current_lists() -> dict:
+    """Aktuální stav z úložiště – volá se až uvnitř zámku Pi-hole API, aby pravidelný
+    sync nepřepsal právě provedené odemčení starými daty."""
     store = get_store()
     settings = get_settings()
     apex_domains = store.blocked_domains_for_sinkhole()
@@ -64,7 +65,33 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
         all_silent=settings.sinkhole_all_silent,
         silent_extra=settings.sinkhole_silent_domains,
     )
-    portal_hosts = expand_sinkhole_domains(portal_apex)
+    return {
+        "apex_domains": apex_domains,
+        "portal_apex": portal_apex,
+        "silent_apex": silent_apex,
+        "portal_hosts": expand_sinkhole_domains(portal_apex),
+        "granted": set(store.active_grants()),
+    }
+
+
+async def _sync_with(ph: PiHoleClient, portal_ip: str) -> int:
+    lists = _current_lists()
+    return await _sync_pihole_api(
+        ph,
+        portal_ip,
+        lists["portal_hosts"],
+        lists["apex_domains"],
+        silent_apex=lists["silent_apex"],
+        portal_apex=lists["portal_apex"],
+        granted=lists["granted"],
+    )
+
+
+async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
+    settings = get_settings()
+    lists = _current_lists()
+    apex_domains = lists["apex_domains"]
+    portal_hosts = lists["portal_hosts"]
     domains = expand_sinkhole_domains(apex_domains)
     mode = (settings.pihole_sinkhole_mode or "both").lower()
 
@@ -77,28 +104,14 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
     if mode in ("api", "both"):
         try:
             if ph is not None:
-                hosts_written = await _sync_pihole_api(
-                    ph,
-                    portal_ip,
-                    portal_hosts,
-                    apex_domains,
-                    silent_apex=silent_apex,
-                        portal_apex=portal_apex,
-                )
+                hosts_written = await _sync_with(ph, portal_ip)
             else:
                 async with pihole_api() as client:
-                    hosts_written = await _sync_pihole_api(
-                        client,
-                        portal_ip,
-                        portal_hosts,
-                        apex_domains,
-                        silent_apex=silent_apex,
-                        portal_apex=portal_apex,
-                    )
+                    hosts_written = await _sync_with(client, portal_ip)
             api_ok = True
         except Exception as e:
             api_err = str(e)
-            logger.exception("Pi-hole API dns.hosts sync")
+            logger.exception("Pi-hole API sync")
 
     if mode in ("file", "both"):
         try:

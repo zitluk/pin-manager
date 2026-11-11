@@ -147,6 +147,25 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         expire_grants, "interval", seconds=30, id="expire_grants", max_instances=1, coalesce=True
     )
+
+    async def resync_pihole():
+        """Po výpadku nebo čisté reinstalaci Pi-hole pravidla sama doplní."""
+        portal_ip = get_settings().portal_ip
+        if not portal_ip:
+            return
+        try:
+            await publish_sinkhole(portal_ip)
+        except Exception as e:
+            logger.warning("Pravidelný sync Pi-hole selhal: %s", e)
+
+    scheduler.add_job(
+        resync_pihole,
+        "interval",
+        seconds=get_settings().pihole_resync_seconds,
+        id="resync_pihole",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     yield
     if startup_sync_task and not startup_sync_task.done():

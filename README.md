@@ -5,10 +5,11 @@ DNS blacklist s PIN autorizací: blokovaná doména se přesměruje na portál, 
 ## Jak to funguje
 
 1. Domény udržujete v **PIN manažeru** (admin `/admin/`).
-2. Blokovaná doména **i všechny její poddomény** (`m.youtube.com`, `i.ytimg.com`…) vedou v DNS na **PORTAL_IP** (Pi-hole `misc.dnsmasq_lines` → `address=/doména/PORTAL_IP`) → v prohlížeči formulář **PIN**.
+2. Blokovaná doména **i všechny její poddomény** (`m.youtube.com`, `i.ytimg.com`…) vedou v DNS na **PORTAL_IP** (regex pravidlo v seznamu domén Pi-hole `(\.|^)doména$;querytype=A;reply=PORTAL_IP`) → v prohlížeči formulář **PIN**.
    Záznamy AAAA a HTTPS/SVCB vracejí pro blokované domény prázdnou odpověď – jinak by Safari z HTTPS záznamu vzalo skutečnou IP a portál obešlo.
 3. **HTTPS bez varování:** na každém zařízení jednou otevřete **`http://PORTAL_IP/setup`** – stáhne profil/certifikát domácí CA a ověří, že zařízení jde přes Pi-hole a CA důvěřuje. Certifikát pro konkrétní doménu se vystaví automaticky při prvním přístupu (bez restartu).
    Bez důvěryhodné CA se weby s HSTS (YouTube) v Safari **neotevřou vůbec** – to nejde obejít jinak.
+   Pin-manager zapisuje **jen do seznamů domén přes API**, nastavení Pi-hole nemění. Každých 5 minut pravidla ověří a doplní – po výpadku nebo čisté reinstalaci Pi-hole stačí zadat stejné `PIHOLE_URL` a heslo.
 4. Po úspěchu: dočasné povolení, doména zmizí z DNS blokace, po vypršení času se vše vrátí.
 5. Obchvaty: iCloud Soukromý přenos a automatické DoH ve Firefoxu síť blokuje (NXDOMAIN pro `mask.icloud.com`, `use-application-dns.net`; vypnout `BLOCK_DNS_BYPASS=false`).
 
