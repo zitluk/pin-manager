@@ -24,7 +24,6 @@ from pin_manager.admin_users import get_admin_store
 from pin_manager.audit import log_event, read_recent
 from pin_manager.blacklist_ops import add_domain, remove_domain
 from pin_manager.config import get_settings
-from pin_manager.pihole import PiHoleClient
 from pin_manager.security import clear_attempts, is_locked, record_failed_attempt, verify_pin
 from pin_manager.store import get_store, _normalize_domain
 from pin_manager.sinkhole import publish_sinkhole
@@ -306,12 +305,6 @@ async def admin_sync_now(request: Request):
         return RedirectResponse("/admin/?error=Chybí+PORTAL_IP", status_code=303)
     try:
         await publish_sinkhole(settings.portal_ip)
-        probe = await PiHoleClient().probe()
-        if not probe.get("ok"):
-            return RedirectResponse(
-                f"/admin/?error=Sync+proběhl,+ale+API+test+selhal:+{probe.get('error', '?')}",
-                status_code=303,
-            )
     except Exception as e:
         logger.exception("admin sync-now")
         return RedirectResponse(f"/admin/?error={e}", status_code=303)

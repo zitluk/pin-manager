@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 from types import TracebackType
 from urllib.parse import quote
 
@@ -9,6 +11,16 @@ import httpx
 from pin_manager.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+_API_LOCK = asyncio.Lock()
+
+
+@asynccontextmanager
+async def pihole_api():
+    """Jedna Pi-hole session najednou (Pi-hole default max ~16)."""
+    async with _API_LOCK:
+        async with PiHoleClient() as client:
+            yield client
 
 
 class PiHoleClient:
@@ -69,8 +81,9 @@ class PiHoleClient:
         if not self._sid or not self._client:
             return
         try:
+            sid_q = quote(self._sid, safe="")
             await self._client.delete(
-                f"{self.base}/api/auth",
+                f"{self.base}/api/auth?sid={sid_q}",
                 headers=self._headers(),
                 timeout=15.0,
             )
@@ -167,15 +180,21 @@ class PiHoleClient:
             )
 
     async def probe(self) -> dict:
-        out: dict = {"url": self.base, "ok": False}
-        try:
-            async with PiHoleClient() as ph:
-                hosts = await ph.get_dns_hosts()
-                out["ok"] = True
-                out["local_dns_count"] = len(hosts)
-        except Exception as e:
-            out["error"] = str(e)
-        return out
+        return await probe_pihole_api()
+
+
+async def probe_pihole_api() -> dict:
+    settings = get_settings()
+    base = settings.pihole_url.rstrip("/")
+    out: dict = {"url": base, "ok": False}
+    try:
+        async with pihole_api() as ph:
+            hosts = await ph.get_dns_hosts()
+            out["ok"] = True
+            out["local_dns_count"] = len(hosts)
+    except Exception as e:
+        out["error"] = str(e)
+    return out
 
     async def restart_dns(self) -> None:
         if not self.settings.pihole_restart_dns:

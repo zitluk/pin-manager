@@ -4,7 +4,7 @@ from pathlib import Path
 from pin_manager.config import get_settings
 from pin_manager.dnsmasq_conf import write_sinkhole_conf
 from pin_manager.domain_expand import expand_sinkhole_domains
-from pin_manager.pihole import PiHoleClient
+from pin_manager.pihole import PiHoleClient, pihole_api
 from pin_manager.store import get_store
 from pin_manager.sync_status import record
 
@@ -20,7 +20,14 @@ async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
                 pass
 
 
-async def publish_sinkhole(portal_ip: str) -> None:
+async def _sync_pihole_api(ph: PiHoleClient, portal_ip: str, domains: list[str]) -> int:
+    await _clear_gravity_denies(ph, domains)
+    await ph.sync_pin_dns_hosts(portal_ip, domains)
+    await ph.restart_dns()
+    return len(domains)
+
+
+async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
     store = get_store()
     domains = expand_sinkhole_domains(store.blocked_domains_for_sinkhole())
     settings = get_settings()
@@ -34,12 +41,12 @@ async def publish_sinkhole(portal_ip: str) -> None:
 
     if mode in ("api", "both"):
         try:
-            async with PiHoleClient() as ph:
-                await _clear_gravity_denies(ph, domains)
-                await ph.sync_pin_dns_hosts(portal_ip, domains)
-                await ph.restart_dns()
+            if ph is not None:
+                hosts_written = await _sync_pihole_api(ph, portal_ip, domains)
+            else:
+                async with pihole_api() as client:
+                    hosts_written = await _sync_pihole_api(client, portal_ip, domains)
             api_ok = True
-            hosts_written = len(domains)
         except Exception as e:
             api_err = str(e)
             logger.exception("Pi-hole API dns.hosts sync")
