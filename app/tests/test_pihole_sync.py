@@ -1,9 +1,14 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
 
 from pin_manager.pihole import PiHoleClient
+
+
+def _resp(method: str, url: str, **kwargs) -> httpx.Response:
+    req = httpx.Request(method, url)
+    return httpx.Response(request=req, **kwargs)
 
 
 @pytest.mark.asyncio
@@ -19,15 +24,17 @@ async def test_sync_pin_dns_hosts_put_and_delete():
 
         async def delete(self, url, **kwargs):
             calls.append(("DELETE", str(url)))
-            return httpx.Response(200, json={"took": 0.01})
+            return _resp("DELETE", str(url), status_code=200, json={"took": 0.01})
 
         async def put(self, url, **kwargs):
             calls.append(("PUT", str(url)))
-            return httpx.Response(200, json={"took": 0.01})
+            return _resp("PUT", str(url), status_code=200, json={"took": 0.01})
 
         async def get(self, url, **kwargs):
-            return httpx.Response(
-                200,
+            return _resp(
+                "GET",
+                str(url),
+                status_code=200,
                 json={
                     "config": {
                         "dns": {
@@ -39,10 +46,13 @@ async def test_sync_pin_dns_hosts_put_and_delete():
 
         async def post(self, url, **kwargs):
             if url.endswith("/api/auth"):
-                return httpx.Response(
-                    200, json={"session": {"sid": "sid-test"}}
+                return _resp(
+                    "POST",
+                    str(url),
+                    status_code=200,
+                    json={"session": {"sid": "sid-test"}},
                 )
-            return httpx.Response(200)
+            return _resp("POST", str(url), status_code=200)
 
     with patch("pin_manager.pihole.httpx.AsyncClient", MockClient):
         async with PiHoleClient() as client:
