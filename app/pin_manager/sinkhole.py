@@ -4,7 +4,7 @@ from pathlib import Path
 from pin_manager.config import get_settings
 from pin_manager.pihole import PiHoleClient
 from pin_manager.store import get_store
-from pin_manager.sync import write_sinkhole_conf
+from pin_manager.dnsmasq_conf import write_sinkhole_conf
 
 logger = logging.getLogger(__name__)
 

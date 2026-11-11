@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 data/
 dnsmasq-sync/pin-sinkhole.conf
+app/tests/_data/
+app/tests/_sync/

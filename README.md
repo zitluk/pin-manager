@@ -33,6 +33,8 @@ Soubor `dnsmasq-sync/pin-sinkhole.conf` generuje kontejner `pin-manager`.
 Nasazení přes GitHub a Portainer: viz [docs/PORTAINER-GITHUB.md](docs/PORTAINER-GITHUB.md).  
 **Lukas (produkce):** VLAN `docker_vlan`, IP **`192.168.39.207`** → Portainer compose path **`portainer-stack.yml`**. Auto deploy po push: [docs/AUTO-DEPLOY.md](docs/AUTO-DEPLOY.md). Viz [docs/PORTAINER-LUKAS.md](docs/PORTAINER-LUKAS.md).
 
+**Ověření:** po každém push běží GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (pytest, build, smoke `/health`). Lokálně: `bash scripts/verify-all.sh` (potřebuje Docker).
+
 ## Rychlý start
 
 ```bash

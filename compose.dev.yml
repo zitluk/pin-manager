@@ -11,6 +11,8 @@ services:
       PORTAL_IP: 127.0.0.1
       PIHOLE_URL: http://127.0.0.1
       PIHOLE_PASSWORD: x
+      PIHOLE_SINKHOLE_MODE: file
+      PIHOLE_RESTART_DNS: "false"
       PIN: "1234"
       ADMIN_TOKEN: dev
       SESSION_SECRET: dev
