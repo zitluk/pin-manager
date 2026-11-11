@@ -33,12 +33,12 @@ services:
           create_host_path: true
     networks:
       docker_vlan:
-        ipv4_address: ${VLAN_IP:-192.168.39.207}
+        ipv4_address: 192.168.39.207
 
 networks:
   docker_vlan:
     external: true
-    name: ${VLAN_NETWORK_NAME:-docker_vlan}
+    name: docker_vlan
 
 volumes:
   pin-manager-data:

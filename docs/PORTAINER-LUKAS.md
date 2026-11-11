@@ -24,7 +24,25 @@ ADMIN_TOKEN=<dlouhý token>
 SESSION_SECRET=<jiný dlouhý secret>
 ```
 
-`PORTAL_IP`, `VLAN_IP` a `VLAN_NETWORK_NAME` mohou zůstat prázdné – v compose jsou výchozí `192.168.39.207` / `docker_vlan`.
+`PORTAL_IP` nastavte `192.168.39.207` (nebo nechte v compose default). **Nenastavujte** prázdné `VLAN_IP` – dříve způsobilo `invalid IP`; IP je teď v compose natvrdo.
+
+### `docker_vlan: invalid IP`
+
+Na RPi:
+
+```bash
+# Kolize IP v LAN?
+ping -c 1 192.168.39.207
+arp -a | grep 192.168.39.207
+
+docker network inspect docker_vlan --format '{{json .IPAM.Config}}'
+
+# Znovu připojit
+docker stop pin-manager && docker rm pin-manager
+# Portainer → Pull and redeploy
+```
+
+IP `.207` nesmí používat jiné zařízení ani druhý kontejner. Síť `docker_vlan` musí mít subnet **192.168.39.0/24**.
 
 ## Pi-hole (sinkhole)
 
