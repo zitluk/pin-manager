@@ -29,7 +29,8 @@ Volitelně (výchozí je už správně):
 - `PIHOLE_SINKHOLE_MODE=api` – jen API (bez mountu Pi-hole)
 - `PIHOLE_SINKHOLE_MODE=file` – jen soubor (viz `AKTIVACE-BLOKOVANI.md`)
 
-**Pi-hole stack neměňte** – žádný mount, žádný extra config.
+**Pi-hole stack neměňte** – žádný mount, žádný extra config.  
+**Nevíte, co v Pi-hole nastavit?** → [PIHOLE-NIC-NENASTAVUJTE.md](./PIHOLE-NIC-NENASTAVUJTE.md) (v Pi-hole UI nic nepřidáváte.)
 
 ---
 

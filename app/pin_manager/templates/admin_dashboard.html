@@ -36,7 +36,7 @@
 </div>
 <div class="card">
   <h2>Pi-hole / DNS</h2>
-  <p class="muted">Blokování funguje jen když Pi-hole vrací <code>{{ portal_ip }}</code> pro doménu z blacklistu (<code>nslookup</code> z PC).</p>
+  <p class="muted">V Pi-hole nic ručně nenastavujete – jen <code>PIHOLE_URL</code> a heslo v Portaineru. Blokování funguje, když <code>nslookup doména</code> z PC vrátí <code>{{ portal_ip }}</code>.</p>
   <p><strong>PIHOLE_URL:</strong> <code>{{ pihole_url }}</code> · režim <code>{{ sinkhole_mode }}</code></p>
   {% if sync_status %}
   <p>
