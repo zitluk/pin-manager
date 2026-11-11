@@ -34,12 +34,12 @@ services:
         bind:
           create_host_path: true
     networks:
-      docker_vlan:
+      pin_macvlan:
         ipv4_address: ${VLAN_IP:-192.168.39.207}
 
 networks:
-  docker_vlan:
-    name: ${VLAN_NETWORK_NAME:-docker_vlan}
+  pin_macvlan:
+    name: pin-manager-macvlan
     driver: macvlan
     driver_opts:
       parent: ${MACVLAN_PARENT:-eth0}

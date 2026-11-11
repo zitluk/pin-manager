@@ -49,17 +49,24 @@ ip -4 route show default | awk '{print $5}'
 
 Tu hodnotu vložte do env stacku jako `MACVLAN_PARENT`.
 
-### Přechod ze starého „external“ docker_vlan
+### Chyba: `network docker_vlan was found but has incorrect label com.docker.compose.network`
 
-Jednou na RPi:
+Na RPi dříve existovala síť **`docker_vlan`** vytvořená ručně – nesedí s Portainer compose.
+
+**Oprava (jednou):**
 
 ```bash
-docker stop pin-manager
-docker rm pin-manager
-docker network rm docker_vlan
+docker stop pin-manager 2>/dev/null; docker rm pin-manager 2>/dev/null
+docker network rm docker_vlan 2>/dev/null || true
 ```
 
-Pak **Pull and redeploy** – stack založí síť znovu s IP `.207`.
+**Pull and redeploy** – nový stack používá síť **`pin-manager-macvlan`** (ne `docker_vlan`).
+
+Volitelně smažte i starou, pokud deploy hlásí konflikt:
+
+```bash
+docker network rm pin-manager-macvlan
+```
 
 ### `docker_vlan: invalid IP`
 
