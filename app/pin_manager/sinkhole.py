@@ -45,6 +45,8 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
     portal_apex, silent_apex = partition_apex_for_sinkhole(
         apex_domains,
         https_silent=settings.sinkhole_https_silent,
+        all_silent=settings.sinkhole_all_silent,
+        silent_extra=settings.sinkhole_silent_domains,
     )
     portal_hosts = expand_sinkhole_domains(portal_apex)
     domains = expand_sinkhole_domains(apex_domains)

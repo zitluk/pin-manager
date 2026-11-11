@@ -22,18 +22,31 @@ HSTS_SIMPLE_BLOCK_APEX: frozenset[str] = frozenset(
 )
 
 
+def _silent_apex_extra(extra: str) -> frozenset[str]:
+    from pin_manager.store import _normalize_domain
+
+    parts = [_normalize_domain(x) for x in extra.split(",")]
+    return frozenset(x for x in parts if x)
+
+
 def partition_apex_for_sinkhole(
-    apex_domains: list[str], *, https_silent: bool
+    apex_domains: list[str],
+    *,
+    https_silent: bool,
+    all_silent: bool = False,
+    silent_extra: str = "",
 ) -> tuple[list[str], list[str]]:
     portal: list[str] = []
     silent: list[str] = []
+    extra = _silent_apex_extra(silent_extra)
+    silent_set = HSTS_SIMPLE_BLOCK_APEX | extra
     for raw in apex_domains:
         from pin_manager.store import _normalize_domain
 
         a = _normalize_domain(raw)
         if not a:
             continue
-        if https_silent and a in HSTS_SIMPLE_BLOCK_APEX:
+        if all_silent or (https_silent and a in silent_set):
             silent.append(a)
         else:
             portal.append(a)

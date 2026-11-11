@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     pihole_require_api: bool = True
     # Domény s HSTS (YouTube…) → blok bez portálu (žádné varování certifikátu u dítěte).
     sinkhole_https_silent: bool = True  # env: SINKHOLE_HTTPS_SILENT
+    # Všechny blokované domény jen „nejde načíst“ (žádný falešný certifikát) – PIN jen na PORTAL_IP.
+    sinkhole_all_silent: bool = False  # env: SINKHOLE_ALL_SILENT
+    # Další domény k tichému bloku (čárkou), např. centrum.cz
+    sinkhole_silent_domains: str = "centrum.cz"  # env: SINKHOLE_SILENT_DOMAINS
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""
