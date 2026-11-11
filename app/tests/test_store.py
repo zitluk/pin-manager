@@ -18,3 +18,6 @@ def test_blacklist_and_grants():
     assert not store.is_blocked("demo.test")
     assert "demo.test" not in store.blocked_domains_for_sinkhole()
     store.remove_blacklist("demo.test")
+    store.add_blacklist("www-match.test")
+    assert store.is_blocked("www.www-match.test")
+    store.remove_blacklist("www-match.test")

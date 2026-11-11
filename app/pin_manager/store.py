@@ -94,12 +94,31 @@ class DataStore:
                 self._save()
             return grants
 
+    def blacklist_match(self, domain: str) -> str | None:
+        """Najde položku blacklistu pro host (včetně www ↔ apex)."""
+        domain = _normalize_domain(domain)
+        if not domain:
+            return None
+        bl = {_normalize_domain(d) for d in self.list_blacklist()}
+        if domain in bl:
+            return domain
+        if domain.startswith("www."):
+            apex = domain[4:]
+            if apex in bl:
+                return apex
+        elif f"www.{domain}" in bl:
+            return domain
+        return None
+
     def is_blocked(self, domain: str) -> bool:
         domain = _normalize_domain(domain)
-        grants = self.active_grants()
-        if domain in grants:
+        if not domain:
             return False
-        return domain in self.list_blacklist()
+        grants = self.active_grants()
+        for variant in _domain_variants(domain):
+            if variant in grants:
+                return False
+        return self.blacklist_match(domain) is not None
 
     def blocked_domains_for_sinkhole(self) -> list[str]:
         grants = self.active_grants()
@@ -109,6 +128,16 @@ class DataStore:
             if nd and nd not in grants:
                 out.append(nd)
         return sorted(set(out))
+
+
+def _domain_variants(domain: str) -> set[str]:
+    domain = _normalize_domain(domain)
+    if not domain:
+        return set()
+    if domain.startswith("www."):
+        apex = domain[4:]
+        return {domain, apex}
+    return {domain, f"www.{domain}"}
 
 
 def _normalize_domain(domain: str) -> str:

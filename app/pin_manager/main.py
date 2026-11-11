@@ -530,10 +530,6 @@ async def catch_all(request: Request, path: str):
         str(request.url.query) if request.url.query else "",
     )
 
-    grants = store.active_grants()
-    if host in grants:
-        return RedirectResponse(target_url, status_code=302)
-
     if not store.is_blocked(host):
         if path in ("", "favicon.ico"):
             store = get_store()
@@ -544,14 +540,15 @@ async def catch_all(request: Request, path: str):
             )
         raise HTTPException(404)
 
+    canonical = store.blacklist_match(host) or host
     log_event(
         "blocked_access",
         request=request,
-        domain=host,
+        domain=canonical,
         detail=target_url,
     )
     return templates.TemplateResponse(
         request,
         "block.html",
-        _block_page_context(host),
+        _block_page_context(canonical),
     )
