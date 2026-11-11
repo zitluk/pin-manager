@@ -185,8 +185,8 @@ class PiHoleClient:
         """Lokální A záznam neblokuje AAAA – regex jen pro IPv6 (bez úprav Pi-hole compose)."""
         desired = {
             aaaa_nodata_regex(d)
-            for d in {_normalize_domain(x) for x in apex_domains}
-            if _normalize_domain(x)
+            for d in (_normalize_domain(x) for x in apex_domains)
+            if d
         }
         existing = await self._list_pin_aaaa_regex_rules()
         for rule in sorted(existing):
