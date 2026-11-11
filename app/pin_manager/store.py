@@ -23,9 +23,26 @@ class DataStore:
         if self._path.exists():
             with open(self._path, encoding="utf-8") as f:
                 self._data = json.load(f)
+            self._sanitize_domains()
         else:
             self._data = self._default()
             self._save()
+
+    def _sanitize_domains(self) -> None:
+        """Opraví staré záznamy typu https://www.youtube.com v blacklistu."""
+        with self._lock:
+            bl = list(self._data.get("blacklist", []))
+            new_bl = sorted({d for x in bl if (d := _normalize_domain(x))})
+            grants = dict(self._data.get("grants", {}))
+            new_grants: dict[str, float] = {}
+            for k, v in grants.items():
+                nk = _normalize_domain(k)
+                if nk:
+                    new_grants[nk] = v
+            if new_bl != sorted(set(bl)) or new_grants != grants:
+                self._data["blacklist"] = new_bl
+                self._data["grants"] = new_grants
+                self._save()
 
     def _save(self) -> None:
         with open(self._path, "w", encoding="utf-8") as f:
@@ -86,22 +103,43 @@ class DataStore:
 
     def blocked_domains_for_sinkhole(self) -> list[str]:
         grants = self.active_grants()
-        return [d for d in self.list_blacklist() if d not in grants]
+        out: list[str] = []
+        for d in self.list_blacklist():
+            nd = _normalize_domain(d)
+            if nd and nd not in grants:
+                out.append(nd)
+        return sorted(set(out))
 
 
 def _normalize_domain(domain: str) -> str:
     domain = domain.strip().lower().rstrip(".")
-    for prefix in ("https://", "http://"):
-        if domain.startswith(prefix):
-            domain = domain[len(prefix) :]
+    if not domain:
+        return ""
+    # Opakovaně: https://www.https://… z formátů zkopírovaných z adresního řádku
+    for _ in range(5):
+        before = domain
+        for prefix in ("https://", "http://"):
+            if domain.startswith(prefix):
+                domain = domain[len(prefix) :]
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if domain == before:
+            break
     if "/" in domain:
         domain = domain.split("/", 1)[0]
+    if "?" in domain:
+        domain = domain.split("?", 1)[0]
+    if "#" in domain:
+        domain = domain.split("#", 1)[0]
     if "@" in domain:
         domain = domain.split("@", 1)[-1]
-    if domain.startswith("www."):
-        domain = domain[4:]
-    if ":" in domain:
+    if ":" in domain and not domain.startswith("["):  # neřešíme raw IPv6
         domain = domain.split(":", 1)[0]
+    domain = domain.strip(".")
+    if "://" in domain or "/" in domain or " " in domain:
+        return ""
+    if "." not in domain:
+        return ""
     return domain
 
 

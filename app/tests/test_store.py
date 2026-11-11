@@ -4,6 +4,8 @@ from pin_manager.store import _normalize_domain, get_store
 def test_normalize_domain_strips_url_and_www():
     assert _normalize_domain("https://www.youtube.com/watch?v=x") == "youtube.com"
     assert _normalize_domain("HTTP://Example.COM/") == "example.com"
+    assert _normalize_domain("https://www.youtube.com") == "youtube.com"
+    assert _normalize_domain("www.https://www.youtube.com") == "youtube.com"
 
 
 def test_blacklist_and_grants():

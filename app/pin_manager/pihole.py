@@ -122,6 +122,11 @@ class PiHoleClient:
                     logger.warning("DELETE dns.hosts %s → %s: %s", entry, r.status_code, r.text)
             failed_add: list[str] = []
             for entry in sorted(desired - pin_managed):
+                host_part = entry.split(" ", 1)[1] if " " in entry else ""
+                if "://" in entry or not host_part or "." not in host_part:
+                    failed_add.append(entry)
+                    logger.warning("Neplatný DNS záznam pro Pi-hole: %s", entry)
+                    continue
                 enc = quote(entry, safe="")
                 r = await client.put(
                     f"{self.base}/api/config/dns/hosts/{enc}",

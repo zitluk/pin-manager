@@ -7,6 +7,8 @@ from pin_manager.store import get_store, _normalize_domain
 
 async def add_domain(domain: str) -> list[str]:
     domain = _normalize_domain(domain)
+    if not domain:
+        raise ValueError("Neplatná doména – zadejte např. youtube.com (bez https://)")
     store = get_store()
     store.add_blacklist(domain)
     for extra in KNOWN_ALIASES.get(domain, []):
