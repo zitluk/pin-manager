@@ -40,14 +40,8 @@ services:
 
 networks:
   pin_macvlan:
-    name: pin-manager-macvlan
-    driver: macvlan
-    driver_opts:
-      parent: ${MACVLAN_PARENT:-eth0}
-    ipam:
-      config:
-        - subnet: ${MACVLAN_SUBNET:-192.168.39.0/24}
-          gateway: ${MACVLAN_GATEWAY:-192.168.39.1}
+    external: true
+    name: ${MACVLAN_NETWORK_NAME:-docker_vlan}
 
 volumes:
   pin-manager-data:

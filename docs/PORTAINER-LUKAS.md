@@ -39,7 +39,16 @@ PIN=<rodičovský PIN>
 SESSION_SECRET=<volitelné; jinak se vygeneruje v /data při první registraci>
 ```
 
-`PORTAL_IP` a `VLAN_IP` = stejná IP (**192.168.39.207**). Síť **macvlan vytvoří stack sám** – už nemusíte ručně zakládat `docker_vlan` v Portaineru.
+`PORTAL_IP` a `VLAN_IP` = stejná IP (**192.168.39.207**).
+
+**Před prvním deployem** (nebo po chybě sítě) na RPi jednou:
+
+```bash
+cd /cesta/k/repu/pin-manager   # nebo stáhněte jen skript
+sudo bash scripts/fix-macvlan-overlap.sh end0 192.168.39.1
+```
+
+(`end0` / gateway upravte.) Stack pak používá **existující** síť `docker_vlan` (`MACVLAN_NETWORK_NAME=docker_vlan`).
 
 **`MACVLAN_PARENT`** – rozhraní k síti. Na novém RPi často **`end0`**, ne `eth0`:
 
@@ -48,6 +57,16 @@ ip -4 route show default | awk '{print $5}'
 ```
 
 Tu hodnotu vložte do env stacku jako `MACVLAN_PARENT`.
+
+### Chyba: `Pool overlaps with other one on this address space`
+
+Docker už má **jinou síť** se subnetem `192.168.39.0/24` (typicky starý `docker_vlan` + nový `pin-manager-macvlan`).
+
+```bash
+sudo bash scripts/fix-macvlan-overlap.sh end0 192.168.39.1
+```
+
+Pak **Pull and redeploy** stacku `portainer-stack.yml` (síť je **external**, stack ji znovu nevytváří).
 
 ### Chyba: `network docker_vlan was found but has incorrect label com.docker.compose.network`
 

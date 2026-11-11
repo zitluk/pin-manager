@@ -6,7 +6,7 @@ set -euo pipefail
 PARENT="${1:-}"
 GATEWAY="${2:-192.168.39.1}"
 SUBNET="192.168.39.0/24"
-NAME="docker_vlan"
+NAME="${MACVLAN_NETWORK_NAME:-docker_vlan}"
 
 if [[ -z "$PARENT" ]]; then
   PARENT="$(ip -4 route show default 2>/dev/null | awk '{print $5}' | head -1)"
