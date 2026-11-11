@@ -65,5 +65,8 @@ input[type="text"], input[type="password"] {
 .muted { color: #94a3b8; font-size: .85rem; }
 .flash-ok { background: #14532d; color: #bbf7d0; padding: .65rem .75rem; border-radius: 8px; margin-bottom: 1rem; }
 .flash-err { background: #7f1d1d; color: #fecaca; padding: .65rem .75rem; border-radius: 8px; margin-bottom: 1rem; }
-.row-form { display: flex; gap: .75rem; }
-.row-form input { flex: 1; margin-bottom: 0; }
+.row-form { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; }
+.row-form input { flex: 1; margin-bottom: 0; min-width: 12rem; }
+.form-card { max-width: 420px; }
+.form-stack { max-width: 100%; }
+.form-stack .btn { margin-top: .25rem; }
