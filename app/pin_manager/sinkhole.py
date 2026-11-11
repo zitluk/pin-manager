@@ -31,9 +31,8 @@ async def _sync_pihole_api(
 ) -> int:
     await _clear_gravity_denies(ph, portal_hosts)
     await ph.sync_pin_dns_hosts(portal_ip, portal_hosts)
-    silent_count = 0
-    if silent_apex:
-        silent_count = await ph.sync_pin_silent_block(silent_apex)
+    # Vždy sync (i prázdný seznam) – odstraní staré pin-manager-silent deny po vypnutí tichého režimu.
+    silent_count = await ph.sync_pin_silent_block(silent_apex)
     aaaa_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
     await ph.restart_dns()
     return len(portal_hosts) + silent_count + aaaa_rules

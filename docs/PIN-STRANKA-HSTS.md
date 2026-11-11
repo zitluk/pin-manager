@@ -1,52 +1,28 @@
-# Proč nevidím PIN po kliknutí na YouTube?
+# PIN při otevření YouTube / HSTS stránek
 
-**Blokování DNS funguje** – web se nenačte nebo hlásí chybu připojení.
+## Doporučený režim (rodina)
 
-**PIN okno** se u velkých služeb (YouTube, Google, …) **často neukáže samo**, protože:
-
-1. Prohlížeč jde rovnou na **HTTPS** (port 443).
-2. YouTube má **HSTS** – nepustí vás na „neoficiální“ certifikát na jménu `youtube.com`.
-
-PIN portál u vás běží na **192.168.39.207** – to není skutečný YouTube server.
-
----
-
-## Jak zadat PIN (doporučený postup)
-
-Na telefonu / PC otevřete **přímo** (není to YouTube URL):
-
-**http://192.168.39.207/**
-
-- uvidíte seznam blokovaných domén,
-- klik na **youtube.com** → formulář s PINem,
-- po správném PINu se doména na zvolenou dobu odblokuje v Pi-hole.
-
-Přímo: **http://192.168.39.207/unlock-for?domain=youtube.com**
+1. V Portaineru: **`SINKHOLE_HTTPS_SILENT=false`**, **`SINKHOLE_ALL_SILENT=false`**, **`PORTAL_HTTPS=true`**, **`PORTAL_TLS_AUTO=true`**.
+2. Na každém telefonu/PC **jednou** nainstalujte CA z **`http://192.168.39.207/ca.crt`** (odkaz v adminu).
+3. V adminu **Znovu synchronizovat Pi-hole** (po změně env nebo po starém tichém režimu).
+4. Ověření: `nslookup www.youtube.com` musí vrátit **`192.168.39.207`** (ne `0.0.0.0`).
+5. Otevřete **https://www.youtube.com** → formulář s PIN (bez červeného varování certifikátu).
 
 ---
 
-## Kdy PIN stránku uvidíte „samo“
+## Kdy PIN „nevyskočí“
 
-U webů **bez HSTS**, pokud otevřete **http://** (ne https) a DNS ukazuje na portál – zobrazí se `block.html`.
+| Příčina | Co udělat |
+|---------|-----------|
+| DNS vrací `0.0.0.0` | Vypněte tichý režim, sync Pi-hole (viz výše) |
+| Varování certifikátu místo PIN | Nainstalujte domácí CA na zařízení |
+| `SINKHOLE_ALL_SILENT=true` | Nastavit `false` – jinak jen odpadá připojení |
+| IPv6 (AAAA) obchází A záznam | Pi-hole regex AAAA je sync automaticky; případně IPv6 vypnout na Wi‑Fi |
 
----
-
-## `nslookup` ukazuje `.207` a ping jde, ale Brave hlásí ERR_ADDRESS_UNREACHABLE
-
-Často prohlížeč zkusí **IPv6 (AAAA)**. Ověření:
-
-```bash
-nslookup -type=AAAA www.centrum.cz
-```
-
-Když vrátí nějaké IPv6 → na Macu dočasně vypněte IPv6 na Wi‑Fi, nebo použijte PIN přes **http://192.168.39.207/unlock-for?domain=centrum.cz**.
+Záložní cesta bez otevření YouTube URL: **`http://192.168.39.207/unlock-for?domain=youtube.com`**
 
 ---
 
-## Shrnutí
+## Starý režim (tichý blok)
 
-| Co vidíte | Význam |
-|-----------|--------|
-| YouTube „nefunguje“ | blokování OK |
-| Žádné PIN okno na youtube.com | normální u HSTS |
-| PIN přes **192.168.39.207** | správný postup |
+`SINKHOLE_HTTPS_SILENT=true` = YouTube „nefunguje“, PIN jen přes IP portálu. Pro PIN přímo na doméně tento režim **nepoužívejte**.

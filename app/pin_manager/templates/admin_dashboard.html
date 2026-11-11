@@ -38,6 +38,21 @@
   <h2>Pi-hole / DNS</h2>
   <p class="muted">V Pi-hole nic ručně nenastavujete – jen <code>PIHOLE_URL</code> a heslo v Portaineru. Blokování funguje, když <code>nslookup doména</code> z PC vrátí <code>{{ portal_ip }}</code>.</p>
   <p><strong>PIHOLE_URL:</strong> <code>{{ pihole_url }}</code> · režim <code>{{ sinkhole_mode }}</code></p>
+  <p>
+    PIN na blokované doméně:
+    {% if sinkhole_all_silent %}
+    <span class="flash-err">vypnuto (SINKHOLE_ALL_SILENT=true) – jen „nejde načíst“, PIN přes {{ portal_ip }}</span>
+    {% elif sinkhole_https_silent %}
+    <span class="flash-err">u YouTube/HSTS vypnuto (SINKHOLE_HTTPS_SILENT=true)</span>
+    {% elif portal_https and portal_tls_auto %}
+    <span class="flash-ok">zapnuto (HTTPS + domácí CA)</span>
+    {% else %}
+    <span class="muted">částečně – zapněte PORTAL_HTTPS + PORTAL_TLS_AUTO a nainstalujte CA</span>
+    {% endif %}
+  </p>
+  {% if sinkhole_all_silent or sinkhole_https_silent %}
+  <p class="flash-err">V Portaineru nastavte <code>SINKHOLE_ALL_SILENT=false</code> a <code>SINKHOLE_HTTPS_SILENT=false</code>, redeploy, pak tlačítko „Znovu synchronizovat Pi-hole“.</p>
+  {% endif %}
   {% if sync_status %}
   <p>
     Poslední sync:

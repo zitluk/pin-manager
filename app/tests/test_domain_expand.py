@@ -21,3 +21,12 @@ def test_partition_hsts_silent():
     assert "youtube.com" in silent
     assert "centrum.cz" in portal
     assert "youtube.com" not in portal
+
+
+def test_partition_portal_pin_on_hsts_when_not_silent():
+    portal, silent = partition_apex_for_sinkhole(
+        ["youtube.com", "centrum.cz"], https_silent=False
+    )
+    assert "youtube.com" in portal
+    assert "centrum.cz" in portal
+    assert silent == []

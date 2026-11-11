@@ -19,13 +19,14 @@ class Settings(BaseSettings):
     pihole_sinkhole_mode: str = "both"
     # V režimu both: bez API sync blokování v Pi-hole typicky nefunguje (soubor musí mountovat Pi-hole).
     pihole_require_api: bool = True
-    # Domény s HSTS (YouTube…) → blok bez portálu (žádné varování certifikátu u dítěte).
-    sinkhole_https_silent: bool = True  # env: SINKHOLE_HTTPS_SILENT
+    # true = YouTube/HSTS jen „nejde načíst“ (PIN jen na PORTAL_IP). false = DNS → portál + PIN na doméně (s CA).
+    sinkhole_https_silent: bool = False  # env: SINKHOLE_HTTPS_SILENT
     # Všechny blokované domény jen „nejde načíst“ (žádný falešný certifikát) – PIN jen na PORTAL_IP.
     sinkhole_all_silent: bool = False  # true = jen „nejde načíst“, bez PIN na doméně
     portal_tls_auto: bool = True  # env: PORTAL_TLS_AUTO – cert se SAN pro blacklist
-    # Další domény k tichému bloku (čárkou), např. centrum.cz
-    sinkhole_silent_domains: str = "centrum.cz"  # env: SINKHOLE_SILENT_DOMAINS
+    portal_https: bool = True  # env: PORTAL_HTTPS – TLS :443 s domácí CA
+    # Další domény k tichému bloku (čárkou), jen když SINKHOLE_HTTPS_SILENT=true
+    sinkhole_silent_domains: str = ""  # env: SINKHOLE_SILENT_DOMAINS
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""

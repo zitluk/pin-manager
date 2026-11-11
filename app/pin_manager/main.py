@@ -323,6 +323,10 @@ async def admin_dashboard(request: Request, message: str | None = None, error: s
             "sync_status": sync_st,
             "pihole_url": settings.pihole_url,
             "sinkhole_mode": settings.pihole_sinkhole_mode,
+            "sinkhole_https_silent": settings.sinkhole_https_silent,
+            "sinkhole_all_silent": settings.sinkhole_all_silent,
+            "portal_https": settings.portal_https,
+            "portal_tls_auto": settings.portal_tls_auto,
         },
     )
 
