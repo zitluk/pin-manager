@@ -7,7 +7,8 @@
   <h1>Blacklist domén</h1>
   <p class="muted">Domény směřují na portál (sinkhole). Po zadání PIN je možné dočasné povolení.</p>
   <form method="post" action="/admin/domains/add" class="row-form">
-    <input type="text" name="domain" placeholder="např. example.com" required pattern="[a-zA-Z0-9.-]+" />
+    <input type="text" name="domain" placeholder="youtube.com (bez https://)" required />
+    <p class="muted" style="margin:-0.5rem 0 1rem;font-size:.8rem">Blokování funguje přes DNS u Pi-hole – viz docs/AKTIVACE-BLOKOVANI.md</p>
     <button type="submit" class="btn">Přidat</button>
   </form>
 </div>

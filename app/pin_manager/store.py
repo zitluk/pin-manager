@@ -91,8 +91,17 @@ class DataStore:
 
 def _normalize_domain(domain: str) -> str:
     domain = domain.strip().lower().rstrip(".")
+    for prefix in ("https://", "http://"):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix) :]
+    if "/" in domain:
+        domain = domain.split("/", 1)[0]
+    if "@" in domain:
+        domain = domain.split("@", 1)[-1]
     if domain.startswith("www."):
         domain = domain[4:]
+    if ":" in domain:
+        domain = domain.split(":", 1)[0]
     return domain
 
 
