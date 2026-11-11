@@ -25,7 +25,8 @@ async def remove_domain(domain: str) -> list[str]:
     store.remove_blacklist(domain)
     store.clear_grant(domain)
     try:
-        await PiHoleClient().remove_allow(domain)
+        async with PiHoleClient() as ph:
+            await ph.remove_allow(domain)
     except Exception:
         pass
     settings = get_settings()

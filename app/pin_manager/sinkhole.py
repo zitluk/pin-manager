@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
-    """Gravity deny vrací 0.0.0.0 – maže portál. Před sinkhole na PORTAL_IP deny odstraníme."""
     for domain in domains:
         for candidate in {domain, f"www.{domain}"}:
             try:
@@ -33,12 +32,12 @@ async def publish_sinkhole(portal_ip: str) -> None:
     file_err: str | None = None
     hosts_written = 0
 
-    ph = PiHoleClient()
-
     if mode in ("api", "both"):
         try:
-            await _clear_gravity_denies(ph, domains)
-            await ph.sync_pin_dns_hosts(portal_ip, domains)
+            async with PiHoleClient() as ph:
+                await _clear_gravity_denies(ph, domains)
+                await ph.sync_pin_dns_hosts(portal_ip, domains)
+                await ph.restart_dns()
             api_ok = True
             hosts_written = len(domains)
         except Exception as e:
@@ -56,12 +55,6 @@ async def publish_sinkhole(portal_ip: str) -> None:
         except Exception as e:
             file_err = str(e)
             logger.exception("dnsmasq sinkhole file sync")
-
-    if api_ok or file_ok:
-        try:
-            await ph.restart_dns()
-        except Exception as e:
-            logger.warning("restart_dns po sinkhole sync: %s", e)
 
     record(
         ok=api_ok or file_ok,
@@ -85,8 +78,7 @@ async def publish_sinkhole(portal_ip: str) -> None:
         if require_api and not api_ok:
             raise RuntimeError(
                 f"Pi-hole API nefunguje ({api_err}). "
-                "Zkontrolujte PIHOLE_URL z kontejneru (IP Pi-hole v LAN) a heslo. "
-                "Samotný soubor v /sync u Pi-hole nenasadíte bez mountu – viz docs/AKTIVACE-BLOKOVANI.md."
+                "Zkontrolujte PIHOLE_URL z kontejneru (IP Pi-hole v LAN) a heslo."
             )
         if not api_ok and not file_ok:
             raise RuntimeError(f"Pi-hole API: {api_err}; soubor: {file_err}")

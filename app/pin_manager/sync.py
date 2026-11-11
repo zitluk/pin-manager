@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from pin_manager.pihole import PiHoleClient
 from pin_manager.sinkhole import publish_sinkhole
@@ -13,22 +14,22 @@ async def apply_unlock(domain: str, minutes: int, portal_ip: str) -> None:
     store = get_store()
     expires = time.time() + minutes * 60
     store.set_grant(domain, expires)
-    ph = PiHoleClient()
     until = datetime.fromtimestamp(expires, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     comment = f"pin-manager until {until}"
-    try:
-        await ph.grant_allow(domain, comment=comment)
-    except Exception as e:
-        logger.info("allow optional (gravity kolize): %s", e)
+    async with PiHoleClient() as ph:
+        try:
+            await ph.grant_allow(domain, comment=comment)
+        except Exception as e:
+            logger.info("allow optional (gravity kolize): %s", e)
     await publish_sinkhole(portal_ip)
 
 
 async def apply_relock(domain: str, portal_ip: str) -> None:
     store = get_store()
     store.clear_grant(domain)
-    ph = PiHoleClient()
-    try:
-        await ph.remove_allow(domain)
-    except Exception as e:
-        logger.info("remove allow: %s", e)
+    async with PiHoleClient() as ph:
+        try:
+            await ph.remove_allow(domain)
+        except Exception as e:
+            logger.info("remove allow: %s", e)
     await publish_sinkhole(portal_ip)

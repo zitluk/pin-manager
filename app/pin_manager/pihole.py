@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import TracebackType
 from urllib.parse import quote
 
 import httpx
@@ -11,24 +12,52 @@ logger = logging.getLogger(__name__)
 
 
 class PiHoleClient:
+    """Jedna HTTP session na Pi-hole API – po skončení vždy odhlásit (kvůli api_seats_exceeded)."""
+
     def __init__(self) -> None:
         self.settings = get_settings()
         self.base = self.settings.pihole_url.rstrip("/")
         self._sid: str | None = None
+        self._client: httpx.AsyncClient | None = None
 
-    async def _login(self, client: httpx.AsyncClient) -> str:
+    async def __aenter__(self) -> PiHoleClient:
+        self._client = httpx.AsyncClient()
+        await self._login()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        await self.logout()
+        if self._client:
+            await self._client.aclose()
+        self._client = None
+
+    def _http(self) -> httpx.AsyncClient:
+        if not self._client:
+            raise RuntimeError("PiHoleClient: použijte async with PiHoleClient()")
+        return self._client
+
+    async def _login(self) -> str:
         if self._sid:
             return self._sid
-        r = await client.post(
+        r = await self._http().post(
             f"{self.base}/api/auth",
             json={"password": self.settings.pihole_password},
             timeout=30.0,
         )
         if r.status_code == 401:
             raise RuntimeError("Pi-hole: špatné heslo (401)")
+        if r.status_code == 429:
+            raise RuntimeError(
+                "Pi-hole: příliš mnoho API session (429). "
+                "Restartujte Pi-hole FTL nebo zvyšte webserver.api.max_sessions."
+            )
         if r.status_code >= 400:
             raise RuntimeError(f"Pi-hole auth {r.status_code}: {r.text[:200]}")
-        r.raise_for_status()
         data = r.json()
         sid = data.get("session", {}).get("sid")
         if not sid:
@@ -36,48 +65,48 @@ class PiHoleClient:
         self._sid = sid
         return sid
 
-    def _headers(self, sid: str) -> dict[str, str]:
-        return {"X-FTL-SID": sid, "Content-Type": "application/json"}
-
-    async def ensure_deny(self, domain: str) -> None:
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            await client.post(
-                f"{self.base}/api/domains/deny/exact",
-                headers=self._headers(sid),
-                json={"domain": domain, "comment": "pin-manager blacklist"},
-                timeout=30.0,
+    async def logout(self) -> None:
+        if not self._sid or not self._client:
+            return
+        try:
+            await self._client.delete(
+                f"{self.base}/api/auth",
+                headers=self._headers(),
+                timeout=15.0,
             )
+        except Exception as e:
+            logger.debug("Pi-hole logout: %s", e)
+        finally:
+            self._sid = None
+
+    def _headers(self) -> dict[str, str]:
+        if not self._sid:
+            raise RuntimeError("Pi-hole: chybí session")
+        return {"X-FTL-SID": self._sid, "Content-Type": "application/json"}
 
     async def remove_deny(self, domain: str) -> None:
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            enc = quote(domain, safe="")
-            await client.delete(
-                f"{self.base}/api/domains/deny/exact/{enc}",
-                headers=self._headers(sid),
-                timeout=30.0,
-            )
+        enc = quote(domain, safe="")
+        await self._http().delete(
+            f"{self.base}/api/domains/deny/exact/{enc}",
+            headers=self._headers(),
+            timeout=30.0,
+        )
 
     async def grant_allow(self, domain: str, comment: str) -> None:
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            await client.post(
-                f"{self.base}/api/domains/allow/exact",
-                headers=self._headers(sid),
-                json={"domain": domain, "comment": comment},
-                timeout=30.0,
-            )
+        await self._http().post(
+            f"{self.base}/api/domains/allow/exact",
+            headers=self._headers(),
+            json={"domain": domain, "comment": comment},
+            timeout=30.0,
+        )
 
     async def remove_allow(self, domain: str) -> None:
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            enc = quote(domain, safe="")
-            await client.delete(
-                f"{self.base}/api/domains/allow/exact/{enc}",
-                headers=self._headers(sid),
-                timeout=30.0,
-            )
+        enc = quote(domain, safe="")
+        await self._http().delete(
+            f"{self.base}/api/domains/allow/exact/{enc}",
+            headers=self._headers(),
+            timeout=30.0,
+        )
 
     @staticmethod
     def _parse_dns_hosts_payload(data: dict) -> list[str]:
@@ -94,60 +123,54 @@ class PiHoleClient:
             return []
         return [h for h in hosts if isinstance(h, str) and h.strip()]
 
-    async def get_dns_hosts(self, client: httpx.AsyncClient, sid: str) -> list[str]:
-        r = await client.get(
+    async def get_dns_hosts(self) -> list[str]:
+        r = await self._http().get(
             f"{self.base}/api/config/dns/hosts",
-            headers=self._headers(sid),
+            headers=self._headers(),
             timeout=30.0,
         )
         r.raise_for_status()
         return self._parse_dns_hosts_payload(r.json())
 
     async def sync_pin_dns_hosts(self, portal_ip: str, domains: list[str]) -> None:
-        """Local DNS v Pi-hole: „IP doména“ – pouze PUT/DELETE, bez PATCH celého seznamu."""
         prefix = f"{portal_ip} "
         desired = {f"{portal_ip} {d}" for d in set(domains)}
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            existing = await self.get_dns_hosts(client, sid)
-            pin_managed = {h for h in existing if h.startswith(prefix)}
-            for entry in sorted(pin_managed - desired):
-                enc = quote(entry, safe="")
-                r = await client.delete(
-                    f"{self.base}/api/config/dns/hosts/{enc}",
-                    headers=self._headers(sid),
-                    timeout=30.0,
-                )
-                if r.status_code >= 400:
-                    logger.warning("DELETE dns.hosts %s → %s: %s", entry, r.status_code, r.text)
-            failed_add: list[str] = []
-            for entry in sorted(desired - pin_managed):
-                host_part = entry.split(" ", 1)[1] if " " in entry else ""
-                if "://" in entry or not host_part or "." not in host_part:
-                    failed_add.append(entry)
-                    logger.warning("Neplatný DNS záznam pro Pi-hole: %s", entry)
-                    continue
-                enc = quote(entry, safe="")
-                r = await client.put(
-                    f"{self.base}/api/config/dns/hosts/{enc}",
-                    headers=self._headers(sid),
-                    timeout=30.0,
-                )
-                if r.status_code >= 400:
-                    logger.warning("PUT dns.hosts %s → %s: %s", entry, r.status_code, r.text)
-                    failed_add.append(entry)
-            if failed_add:
-                raise RuntimeError(
-                    f"Pi-hole neuložil DNS záznamy: {', '.join(failed_add)}"
-                )
+        existing = await self.get_dns_hosts()
+        pin_managed = {h for h in existing if h.startswith(prefix)}
+        for entry in sorted(pin_managed - desired):
+            enc = quote(entry, safe="")
+            r = await self._http().delete(
+                f"{self.base}/api/config/dns/hosts/{enc}",
+                headers=self._headers(),
+                timeout=30.0,
+            )
+            if r.status_code >= 400:
+                logger.warning("DELETE dns.hosts %s → %s: %s", entry, r.status_code, r.text)
+        failed_add: list[str] = []
+        for entry in sorted(desired - pin_managed):
+            host_part = entry.split(" ", 1)[1] if " " in entry else ""
+            if "://" in entry or not host_part or "." not in host_part:
+                failed_add.append(entry)
+                continue
+            enc = quote(entry, safe="")
+            r = await self._http().put(
+                f"{self.base}/api/config/dns/hosts/{enc}",
+                headers=self._headers(),
+                timeout=30.0,
+            )
+            if r.status_code >= 400:
+                logger.warning("PUT dns.hosts %s → %s: %s", entry, r.status_code, r.text)
+                failed_add.append(entry)
+        if failed_add:
+            raise RuntimeError(
+                f"Pi-hole neuložil DNS záznamy: {', '.join(failed_add)}"
+            )
 
     async def probe(self) -> dict:
-        """Rychlá kontrola dostupnosti API z kontejneru."""
         out: dict = {"url": self.base, "ok": False}
         try:
-            async with httpx.AsyncClient() as client:
-                sid = await self._login(client)
-                hosts = await self.get_dns_hosts(client, sid)
+            async with PiHoleClient() as ph:
+                hosts = await ph.get_dns_hosts()
                 out["ok"] = True
                 out["local_dns_count"] = len(hosts)
         except Exception as e:
@@ -157,12 +180,10 @@ class PiHoleClient:
     async def restart_dns(self) -> None:
         if not self.settings.pihole_restart_dns:
             return
-        async with httpx.AsyncClient() as client:
-            sid = await self._login(client)
-            r = await client.post(
-                f"{self.base}/api/action/restartdns",
-                headers=self._headers(sid),
-                timeout=60.0,
-            )
-            if r.status_code >= 400:
-                logger.warning("restartdns returned %s: %s", r.status_code, r.text)
+        r = await self._http().post(
+            f"{self.base}/api/action/restartdns",
+            headers=self._headers(),
+            timeout=60.0,
+        )
+        if r.status_code >= 400:
+            logger.warning("restartdns returned %s: %s", r.status_code, r.text)
