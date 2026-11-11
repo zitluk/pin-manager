@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     # Domény s HSTS (YouTube…) → blok bez portálu (žádné varování certifikátu u dítěte).
     sinkhole_https_silent: bool = True  # env: SINKHOLE_HTTPS_SILENT
     # Všechny blokované domény jen „nejde načíst“ (žádný falešný certifikát) – PIN jen na PORTAL_IP.
-    sinkhole_all_silent: bool = True  # env: SINKHOLE_ALL_SILENT – všechny blacklist domény
+    sinkhole_all_silent: bool = False  # true = jen „nejde načíst“, bez PIN na doméně
+    portal_tls_auto: bool = True  # env: PORTAL_TLS_AUTO – cert se SAN pro blacklist
     # Další domény k tichému bloku (čárkou), např. centrum.cz
     sinkhole_silent_domains: str = "centrum.cz"  # env: SINKHOLE_SILENT_DOMAINS
     admin_token: str = ""

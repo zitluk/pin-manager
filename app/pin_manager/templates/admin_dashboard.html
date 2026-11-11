@@ -52,6 +52,11 @@
   <form method="post" action="/admin/sync-now" style="margin-top:1rem">
     <button type="submit" class="btn">Znovu synchronizovat Pi-hole</button>
   </form>
+  <p class="muted" style="margin-top:1rem">
+    <strong>HTTPS bez varování:</strong> na každém zařízení (i dítě) jednou nainstalujte
+    <a href="/ca.crt">domácí CA certifikát</a>.
+    Po přidání <em>nové</em> domény do blacklistu: restart kontejneru pin-manager.
+  </p>
 </div>
 <div class="card muted">
   <strong>Režim:</strong> {{ deploy_mode }}{% if deploy_mode == 'vlan' %} (macvlan, bez mapování portů){% endif %}<br />

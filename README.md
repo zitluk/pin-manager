@@ -5,8 +5,8 @@ DNS blacklist s PIN autorizací: blokovaná doména se přesměruje na portál, 
 ## Jak to funguje
 
 1. Domény udržujete v **PIN manažeru** (admin `/admin/`).
-2. Výchozí **tichý blok** (`SINKHOLE_ALL_SILENT=true`): DNS „nejde načíst“, bez varování certifikátu u dítěte. PIN zadá rodič na **`http://PORTAL_IP/`**.
-3. Po výběru domény a PINu: dočasné **allow** v Pi-hole, po vypršení času znovu blok.
+2. Blokovaná doména v DNS ukazuje na **PORTAL_IP** → při otevření v prohlížeči formulář **PIN** (stejný pro dítě i rodiče).
+3. **HTTPS bez varování:** jednou nainstalujte na každé zařízení CA certifikát z **`http://PORTAL_IP/ca.crt`** (viz admin). Po nové doméně v blacklistu restartujte kontejner pin-manager.
 4. Po úspěchu: dočasné **allow** v Pi-hole, doména zmizí ze sinkhole, po vypršení času se vše vrátí.
 
 ## Požadavky

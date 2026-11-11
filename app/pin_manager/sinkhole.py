@@ -7,6 +7,7 @@ from pin_manager.domain_expand import expand_sinkhole_domains, partition_apex_fo
 from pin_manager.pihole import PiHoleClient, pihole_api
 from pin_manager.store import get_store
 from pin_manager.sync_status import record
+from pin_manager.tls_certs import ensure_tls_material
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,12 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
         except Exception as e:
             file_err = str(e)
             logger.exception("dnsmasq sinkhole file sync")
+
+    if settings.portal_tls_auto and (api_ok or file_ok):
+        try:
+            ensure_tls_material(domains)
+        except Exception as e:
+            logger.warning("TLS cert po sync: %s", e)
 
     record(
         ok=api_ok or file_ok,

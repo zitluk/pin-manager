@@ -10,7 +10,7 @@ from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Form, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -29,6 +29,7 @@ from pin_manager.store import get_store, _normalize_domain
 from pin_manager.sinkhole import publish_sinkhole
 from pin_manager.sync import apply_relock, apply_unlock
 from pin_manager.sync_status import read as read_sync_status
+from pin_manager.tls_certs import ca_cert_path, ensure_tls_material
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,6 +50,16 @@ def _host_from_request(request: Request) -> str:
     return _normalize_domain(host.split(":")[0])
 
 
+async def _startup_tls() -> None:
+    settings = get_settings()
+    if not settings.portal_tls_auto:
+        return
+    try:
+        ensure_tls_material()
+    except Exception as e:
+        logger.warning("TLS cert při startu: %s", e)
+
+
 async def _startup_pihole_sync(portal_ip: str) -> None:
     try:
         await publish_sinkhole(portal_ip)
@@ -61,6 +72,7 @@ async def _startup_pihole_sync(portal_ip: str) -> None:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     portal_ip = settings.portal_ip
+    await _startup_tls()
     startup_sync_task: asyncio.Task | None = None
     if portal_ip:
         startup_sync_task = asyncio.create_task(_startup_pihole_sync(portal_ip))
@@ -107,6 +119,19 @@ def _admin_redirect_if_needed(request: Request) -> RedirectResponse | None:
     if not is_admin_authenticated(request):
         return RedirectResponse("/admin/login", status_code=303)
     return None
+
+
+@app.get("/ca.crt")
+async def download_home_ca():
+    """Jednou nainstalovat na každé zařízení (dítě + rodič) – pak HTTPS bez varování."""
+    path = ca_cert_path()
+    if not path.is_file():
+        raise HTTPException(404, "CA certifikát ještě nebyl vytvořen – proveďte sync Pi-hole.")
+    return FileResponse(
+        path,
+        media_type="application/x-x509-ca-cert",
+        filename="pin-manager-ca.crt",
+    )
 
 
 @app.get("/health")
