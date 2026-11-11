@@ -1,86 +1,66 @@
 # Kam v Portaineru dát PIHOLE_URL, heslo a PORTAL_IP
 
-Tyto hodnoty **nejsou** v Pi-hole. Patří do **stacku pin-manager** v Portaineru jako **proměnné prostředí** (Environment variables).
+Máte stránku **Stack details** u **pin-manager** a sekci **Environment variables** – **přesně tam**.
 
 ---
 
-## Krok za krokem (Portainer 2.x)
+## Co udělat na obrazovce, kterou vidíte
 
-1. V levém menu klikněte **Stacks** (Správa zásobníků / Zásobníky).
-2. V seznamu otevřete stack **`pin-manager`** (název může být i trochu jiný – ten, kde běží Git repozitář `zitluk/pin-manager`).
-3. Nahoře uvidíte záložky, typicky:
-   - **Editor** nebo **Stack**
-   - **Environment variables** / **Proměnné prostředí**
-4. Klikněte na **Environment variables** (někdy je až po rozkliknutí **Advanced mode** / **Pokročilé** při úpravě stacku).
+1. V sekci **Environment variables** klikněte na **Switch to simple mode** (přepnout na jednoduchý režim).
+2. Do velkého pole (kde je nápověda `e.g. key=value`) **smažte** starý obsah a **vložte** např.:
 
-Tam přidávejte řádky jako v tabulce níže (**Add an environment variable** / **Přidat proměnnou**).
-
-5. Po každé změně dole **Update the stack** / **Aktualizovat zásobník** (nebo **Pull and redeploy**, pokud jen stáhnete Git).
-
----
-
-## Když záložku „Environment variables“ nevidíte
-
-### Varianta A – úprava stacku
-
-1. **Stacks** → váš stack → tři tečky **⋮** → **Editor** nebo **Edit**.
-2. Zapněte **Advanced mode**.
-3. Sekce **Environment variables** – přidat klíč a hodnotu.
-
-### Varianta B – jen kontejner (nouzově, nedoporučeno)
-
-1. **Containers** → **pin-manager** → **Duplicate / Edit** (nebo **Recreate**).
-2. Sekce **Env** – přidat proměnné.
-3. Lepší je **opravit stack** (varianta A), jinak po redeploy z Gitu změny zmizí.
-
-### Varianta C – stack jste zakládali bez Gitu
-
-Při **Add stack** je nahoře záložka **Environment variables** ještě **před** deployem. U existujícího stacku použijte variantu A.
-
----
-
-## Co přesně přidat (klíč = jméno, hodnota = value)
-
-| Jméno (name) | Hodnota (value) – příklad |
-|--------------|---------------------------|
-| `PIHOLE_URL` | `http://192.168.39.5` ← vaše reálná IP Pi-hole |
-| `PIHOLE_PASSWORD` | vaše heslo do Pi-hole webu |
-| `PORTAL_IP` | `192.168.39.207` |
-| `VLAN_IP` | `192.168.39.207` |
-| `PIN` | rodičovský PIN (4–8 znaků) |
-| `MACVLAN_NETWORK_NAME` | `docker_vlan` |
-| `MACVLAN_PARENT` | `end0` nebo `eth0` (viz `ip route` na RPi) |
-| `MACVLAN_GATEWAY` | IP Mikrotiku ve 39.x, často `192.168.39.1` |
-
-**Pozor:** pište **jméno bez** `=` a hodnotu zvlášť – v Portaineru jsou to dvě kolonky (name / value), ne jeden řádek `PIHOLE_URL=http://...` do compose souboru (pokud to UI neumožňuje jinak).
-
----
-
-## Jak poznáte, že to funguje
-
-1. **Containers** → **pin-manager** → **Logs** – po startu by neměly být chyby auth k Pi-hole.
-2. **http://192.168.39.207/admin/** → **Znovu synchronizovat Pi-hole** → **API OK**.
-
----
-
-## Kontrola, že proměnné v kontejneru jsou
-
-Na RPi (SSH), jen pro kontrolu – **heslo neukazuje**:
-
-```bash
-docker inspect pin-manager --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^PIHOLE_|^PORTAL'
+```env
+PIHOLE_URL=http://192.168.39.5
+PIHOLE_PASSWORD=vaše_heslo_do_pihole
+PORTAL_IP=192.168.39.207
+VLAN_IP=192.168.39.207
+PIN=1234
+MACVLAN_NETWORK_NAME=docker_vlan
+MACVLAN_PARENT=end0
+MACVLAN_SUBNET=192.168.39.0/24
+MACVLAN_GATEWAY=192.168.39.1
 ```
 
-Měli byste vidět např. `PIHOLE_URL=http://192.168.39.5` a `PORTAL_IP=192.168.39.207`.
+- `PIHOLE_URL` – IP Pi-hole v prohlížeči (bez `/admin`).
+- `MACVLAN_PARENT` – na RPi: `ip route | grep default` (často `end0`).
+- `MACVLAN_GATEWAY` – Mikrotik ve 39.x.
 
-Když tam **nic není** → env v Portaineru u stacku opravdu nejsou nastavené.
+Šablona v Gitu: soubor **`stack.env.example`** (jen kopírovat do Portaineru, neukládat heslo do Gitu).
+
+3. **Uložit** stránku stacku (pokud je tlačítko **Update stack** / změny se jen automaticky pamatují – záleží na verzi).
+
+4. Nahoře na stejné stránce: **Pull and redeploy** / **Redeploy from git repository** – **bez toho se env nepoužije** (Portainer to píše: *Environment changes will not take effect until redeployment*).
+
+5. Po chvíli v sekci **Containers** musí být kontejner **`pin-manager`** ve stavu **running**.  
+   Když je **No items available** → deploy spadl (síť / compose) – po redeploy zkontrolujte **Notifications** nebo log deploye.
+
+---
+
+## Git + stack.env (nepovinné)
+
+Portainer píše, že **`stack.env` v repu** je potřeba jen pokud na něj compose **odkazuje**.  
+Náš **`portainer-stack.yml`** používá `${PIHOLE_URL}` z **pole Environment variables** výše – **stack.env v Gitu nepotřebujete**.
+
+---
+
+## Kontrola na RPi
+
+```bash
+docker ps -a --filter name=pin-manager
+docker inspect pin-manager --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^PIHOLE_|^PORTAL'
+```
 
 ---
 
 ## Shrnutí
 
-| Kde | Co |
-|-----|-----|
-| **Portainer → Stacks → pin-manager → Environment variables** | `PIHOLE_URL`, `PIHOLE_PASSWORD`, `PORTAL_IP`, … |
-| **Pi-hole web** | nic nepřidáváte |
-| **Compose soubor v Gitu** | nemusíte editovat ručně |
+| Kde na stránce | Co |
+|----------------|-----|
+| **Environment variables** → **simple mode** | řádky `PIHOLE_URL=...` atd. |
+| **Pull and redeploy** | po vyplnění env |
+| **Containers** (dole) | musí být `pin-manager` running |
+
+| Kde **ne** | |
+|-------------|--|
+| Pi-hole web | nic |
+| docker-compose.yml v Gitu ručně | nemusíte |
