@@ -5,6 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlencode, urlsplit
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Form, Header, HTTPException, Request
@@ -54,6 +55,40 @@ def _build_target_url(host: str, path: str, query: str) -> str:
     q = f"?{query}" if query else ""
     # Po odblokování preferujeme HTTPS (většina stránek)
     return f"https://{host}{path}{q}"
+
+
+def _admin_redirect(path: str, *, message: str | None = None, error: str | None = None):
+    """Redirect se zprávou – text se kóduje (dřív ho rozbily znaky & # + z výjimek)."""
+    params = {k: v for k, v in (("message", message), ("error", error)) if v}
+    url = f"{path}?{urlencode(params)}" if params else path
+    return RedirectResponse(url, status_code=303)
+
+
+def _safe_target_url(target_url: str | None, domain: str) -> str:
+    """target_url z formuláře jen když míří na stejnou (blokovanou) doménu, jinak výchozí."""
+    fallback = _build_target_url(domain, "/", "")
+    if not target_url:
+        return fallback
+    # Zpětné lomítko a řídicí znaky prohlížeče čtou jinak než urlsplit (https://evil\@yt.com)
+    if "\\" in target_url or any(ord(c) < 33 or ord(c) == 127 for c in target_url):
+        return fallback
+    try:
+        parts = urlsplit(target_url)
+        hostname = parts.hostname
+    except ValueError:
+        return fallback
+    if parts.scheme not in ("http", "https") or not hostname:
+        return fallback
+    store = get_store()
+    target_host = _normalize_domain(hostname)
+    domain = _normalize_domain(domain)
+    if not target_host or not domain:
+        return fallback
+    if (store.blacklist_match(target_host) or target_host) != (
+        store.blacklist_match(domain) or domain
+    ):
+        return fallback
+    return target_url
 
 
 def _host_from_request(request: Request) -> str:
@@ -359,13 +394,13 @@ async def admin_sync_now(request: Request):
         return redir
     settings = get_settings()
     if not settings.portal_ip:
-        return RedirectResponse("/admin/?error=Chybí+PORTAL_IP", status_code=303)
+        return _admin_redirect("/admin/", error="Chybí PORTAL_IP")
     try:
         await publish_sinkhole(settings.portal_ip)
     except Exception as e:
         logger.exception("admin sync-now")
-        return RedirectResponse(f"/admin/?error={e}", status_code=303)
-    return RedirectResponse("/admin/?message=Pi-hole+synchronizováno", status_code=303)
+        return _admin_redirect("/admin/", error=str(e))
+    return _admin_redirect("/admin/", message="Pi-hole synchronizováno")
 
 
 @app.get("/admin/grants")
@@ -398,25 +433,19 @@ async def admin_grants_revoke(request: Request, domain: str = Form(...)):
     domain = _normalize_domain(domain)
     settings = get_settings()
     if not domain:
-        return RedirectResponse("/admin/grants?error=Neplatná+doména", status_code=303)
+        return _admin_redirect("/admin/grants", error="Neplatná doména")
     grants = get_store().active_grants()
     if domain not in grants:
-        return RedirectResponse(
-            f"/admin/grants?error=Doména+{domain}+nemá+aktivní+povolení",
-            status_code=303,
-        )
+        return _admin_redirect("/admin/grants", error=f"Doména {domain} nemá aktivní povolení")
     if not settings.portal_ip:
-        return RedirectResponse("/admin/grants?error=Chybí+PORTAL_IP", status_code=303)
+        return _admin_redirect("/admin/grants", error="Chybí PORTAL_IP")
     try:
         await apply_relock(domain, settings.portal_ip)
     except Exception as e:
         logger.exception("admin revoke grant")
-        return RedirectResponse(f"/admin/grants?error={e}", status_code=303)
+        return _admin_redirect("/admin/grants", error=str(e))
     log_event("grant_revoked", request=request, domain=domain)
-    return RedirectResponse(
-        f"/admin/grants?message=Povolení+pro+{domain}+zrušeno",
-        status_code=303,
-    )
+    return _admin_redirect("/admin/grants", message=f"Povolení pro {domain} zrušeno")
 
 
 @app.get("/admin/pin")
@@ -451,21 +480,15 @@ async def admin_pin_post(
     if redir:
         return redir
     if new_pin != new_pin2:
-        return RedirectResponse(
-            "/admin/pin?error=Nový+PIN+se+nerovná+potvrzení",
-            status_code=303,
-        )
+        return _admin_redirect("/admin/pin", error="Nový PIN se nerovná potvrzení")
     if not verify_family_pin(current_pin):
-        return RedirectResponse(
-            "/admin/pin?error=Špatný+současný+PIN",
-            status_code=303,
-        )
+        return _admin_redirect("/admin/pin", error="Špatný současný PIN")
     try:
         set_family_pin(new_pin)
     except ValueError as e:
-        return RedirectResponse(f"/admin/pin?error={e}", status_code=303)
+        return _admin_redirect("/admin/pin", error=str(e))
     log_event("family_pin_changed", request=request)
-    return RedirectResponse("/admin/pin?message=PIN+uložen", status_code=303)
+    return _admin_redirect("/admin/pin", message="PIN uložen")
 
 
 @app.get("/admin/logs")
@@ -493,14 +516,14 @@ async def admin_ui_add(request: Request, domain: str = Form(...)):
         return redir
     domain = domain.strip()
     if not domain:
-        return RedirectResponse("/admin/?error=Prázdná+doména", status_code=303)
+        return _admin_redirect("/admin/", error="Prázdná doména")
     try:
         await add_domain(domain)
         log_event("blacklist_add", request=request, domain=_normalize_domain(domain))
     except Exception as e:
         logger.exception("add_domain")
-        return RedirectResponse(f"/admin/?error={e}", status_code=303)
-    return RedirectResponse("/admin/?message=Doména+přidána", status_code=303)
+        return _admin_redirect("/admin/", error=str(e))
+    return _admin_redirect("/admin/", message="Doména přidána")
 
 
 @app.post("/admin/domains/remove")
@@ -513,8 +536,8 @@ async def admin_ui_remove(request: Request, domain: str = Form(...)):
         log_event("blacklist_remove", request=request, domain=_normalize_domain(domain))
     except Exception as e:
         logger.exception("remove_domain")
-        return RedirectResponse(f"/admin/?error={e}", status_code=303)
-    return RedirectResponse("/admin/?message=Doména+odebrána", status_code=303)
+        return _admin_redirect("/admin/", error=str(e))
+    return _admin_redirect("/admin/", message="Doména odebrána")
 
 
 @app.get("/preview/block")
@@ -622,10 +645,13 @@ async def unlock(
         raise HTTPException(400, "Neplatná délka povolení")
 
     domain = _normalize_domain(host)
+    if not domain:
+        raise HTTPException(400, "Neplatná doména")
+    # Přesměrovat jen na odemykanou doménu (jinak open redirect přes podvržený formulář)
+    target_url = _safe_target_url(target_url, domain)
     if not get_store().is_blocked(domain) and domain not in get_store().list_blacklist():
         # už povoleno
-        dest = target_url or _build_target_url(domain, "/", "")
-        return RedirectResponse(dest, status_code=302)
+        return RedirectResponse(target_url, status_code=302)
 
     if not verify_pin(pin):
         locked_now, sec = record_failed_attempt(client_ip)
@@ -644,8 +670,8 @@ async def unlock(
             request,
             "block.html",
             {
-                "target_display": target_url or domain,
-                "target_url": target_url or _build_target_url(domain, "/", ""),
+                "target_display": target_url,
+                "target_url": target_url,
                 "host": domain,
                 "duration_options": get_settings().duration_minutes_list,
                 "error": err,
@@ -670,11 +696,10 @@ async def unlock(
         domain=domain,
         detail=f"povoleno na {int(minutes)} min",
     )
-    dest = target_url or _build_target_url(domain, "/", "")
     return templates.TemplateResponse(
         request,
         "redirect.html",
-        {"target_url": dest, "target_display": dest},
+        {"target_url": target_url, "target_display": target_url},
     )
 
 

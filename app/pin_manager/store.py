@@ -70,6 +70,11 @@ class DataStore:
         with json_transaction(self._path, _default) as data:
             data.setdefault("grants", {}).pop(domain, None)
 
+    def grant_until_raw(self, domain: str) -> float | None:
+        """Uložený čas vypršení (i prošlý) – kvůli návratu stavu po chybě."""
+        domain = _normalize_domain(domain)
+        return self._read().get("grants", {}).get(domain)
+
     def active_grants(self) -> dict[str, float]:
         """Jen platná povolení. Prošlá NEMAŽE – to dělá pop_expired_grants() v plánovači,
         který zároveň vrátí blokování v Pi-hole."""
