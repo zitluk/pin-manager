@@ -182,6 +182,17 @@ class PiHoleClient:
     async def probe(self) -> dict:
         return await probe_pihole_api()
 
+    async def restart_dns(self) -> None:
+        if not self.settings.pihole_restart_dns:
+            return
+        r = await self._http().post(
+            f"{self.base}/api/action/restartdns",
+            headers=self._headers(),
+            timeout=60.0,
+        )
+        if r.status_code >= 400:
+            logger.warning("restartdns returned %s: %s", r.status_code, r.text)
+
 
 async def probe_pihole_api() -> dict:
     settings = get_settings()
@@ -195,14 +206,3 @@ async def probe_pihole_api() -> dict:
     except Exception as e:
         out["error"] = str(e)
     return out
-
-    async def restart_dns(self) -> None:
-        if not self.settings.pihole_restart_dns:
-            return
-        r = await self._http().post(
-            f"{self.base}/api/action/restartdns",
-            headers=self._headers(),
-            timeout=60.0,
-        )
-        if r.status_code >= 400:
-            logger.warning("restartdns returned %s: %s", r.status_code, r.text)
