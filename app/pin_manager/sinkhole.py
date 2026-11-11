@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pin_manager.config import get_settings
 from pin_manager.dnsmasq_conf import write_sinkhole_conf
-from pin_manager.domain_expand import expand_sinkhole_domains
+from pin_manager.domain_expand import expand_sinkhole_domains, partition_apex_for_sinkhole
 from pin_manager.pihole import PiHoleClient, pihole_api
 from pin_manager.store import get_store
 from pin_manager.sync_status import record
@@ -23,21 +23,31 @@ async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
 async def _sync_pihole_api(
     ph: PiHoleClient,
     portal_ip: str,
-    domains: list[str],
+    portal_hosts: list[str],
     apex_domains: list[str],
+    *,
+    silent_apex: list[str],
 ) -> int:
-    await _clear_gravity_denies(ph, domains)
-    await ph.sync_pin_dns_hosts(portal_ip, domains)
+    await _clear_gravity_denies(ph, portal_hosts)
+    await ph.sync_pin_dns_hosts(portal_ip, portal_hosts)
+    silent_count = 0
+    if silent_apex:
+        silent_count = await ph.sync_pin_silent_block(silent_apex)
     aaaa_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
     await ph.restart_dns()
-    return len(domains) + aaaa_rules
+    return len(portal_hosts) + silent_count + aaaa_rules
 
 
 async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
     store = get_store()
-    apex_domains = store.blocked_domains_for_sinkhole()
-    domains = expand_sinkhole_domains(apex_domains)
     settings = get_settings()
+    apex_domains = store.blocked_domains_for_sinkhole()
+    portal_apex, silent_apex = partition_apex_for_sinkhole(
+        apex_domains,
+        https_silent=settings.sinkhole_https_silent,
+    )
+    portal_hosts = expand_sinkhole_domains(portal_apex)
+    domains = expand_sinkhole_domains(apex_domains)
     mode = (settings.pihole_sinkhole_mode or "both").lower()
 
     api_ok = False
@@ -49,11 +59,21 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
     if mode in ("api", "both"):
         try:
             if ph is not None:
-                hosts_written = await _sync_pihole_api(ph, portal_ip, domains, apex_domains)
+                hosts_written = await _sync_pihole_api(
+                    ph,
+                    portal_ip,
+                    portal_hosts,
+                    apex_domains,
+                    silent_apex=silent_apex,
+                )
             else:
                 async with pihole_api() as client:
                     hosts_written = await _sync_pihole_api(
-                        client, portal_ip, domains, apex_domains
+                        client,
+                        portal_ip,
+                        portal_hosts,
+                        apex_domains,
+                        silent_apex=silent_apex,
                     )
             api_ok = True
         except Exception as e:
@@ -64,7 +84,7 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
         try:
             write_sinkhole_conf(
                 portal_ip,
-                domains,
+                portal_hosts,
                 Path(settings.dnsmasq_sinkhole_path),
             )
             file_ok = True

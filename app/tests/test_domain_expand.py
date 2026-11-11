@@ -1,4 +1,4 @@
-from pin_manager.domain_expand import expand_sinkhole_domains
+from pin_manager.domain_expand import expand_sinkhole_domains, partition_apex_for_sinkhole
 
 
 def test_expand_from_url_in_blacklist():
@@ -12,3 +12,12 @@ def test_expand_youtube():
     assert "youtube.com" in names
     assert "www.youtube.com" in names
     assert "googlevideo.com" in names
+
+
+def test_partition_hsts_silent():
+    portal, silent = partition_apex_for_sinkhole(
+        ["youtube.com", "centrum.cz"], https_silent=True
+    )
+    assert "youtube.com" in silent
+    assert "centrum.cz" in portal
+    assert "youtube.com" not in portal

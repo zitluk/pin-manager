@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 _API_LOCK = asyncio.Lock()
 AAAA_DENY_COMMENT = "pin-manager-aaaa"
+SILENT_DENY_COMMENT = "pin-manager-silent"
 
 
 def aaaa_nodata_regex(apex: str) -> str:
@@ -116,6 +117,57 @@ class PiHoleClient:
             headers=self._headers(),
             timeout=30.0,
         )
+
+    async def add_deny_exact(self, domain: str, comment: str = SILENT_DENY_COMMENT) -> None:
+        r = await self._http().post(
+            f"{self.base}/api/domains/deny/exact",
+            headers=self._headers(),
+            json={"domain": domain, "comment": comment, "groups": [0]},
+            timeout=30.0,
+        )
+        if r.status_code >= 400:
+            raise RuntimeError(
+                f"Pi-hole deny exact ({r.status_code}): {r.text[:300]}"
+            )
+        try:
+            errs = self._api_errors(r.json())
+        except Exception:
+            errs = []
+        if errs and "already" not in errs[0].lower():
+            raise RuntimeError(f"Pi-hole deny exact: {errs[0]}")
+
+    async def _list_pin_silent_exact_denies(self) -> set[str]:
+        out: set[str] = set()
+        r = await self._http().get(
+            f"{self.base}/api/domains/deny/exact",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        data = r.json()
+        items = data.get("domains")
+        if not isinstance(items, list):
+            return out
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("comment") != SILENT_DENY_COMMENT:
+                continue
+            dom = item.get("domain")
+            if isinstance(dom, str) and dom:
+                out.add(dom)
+        return out
+
+    async def sync_pin_silent_block(self, apex_domains: list[str]) -> int:
+        from pin_manager.domain_expand import expand_sinkhole_domains
+
+        desired = set(expand_sinkhole_domains(apex_domains))
+        existing = await self._list_pin_silent_exact_denies()
+        for dom in sorted(existing - desired):
+            await self.remove_deny(dom)
+        for dom in sorted(desired - existing):
+            await self.add_deny_exact(dom)
+        return len(desired)
 
     def _api_errors(self, data: dict) -> list[str]:
         proc = data.get("processed") if isinstance(data, dict) else None

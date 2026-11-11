@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     pihole_sinkhole_mode: str = "both"
     # V režimu both: bez API sync blokování v Pi-hole typicky nefunguje (soubor musí mountovat Pi-hole).
     pihole_require_api: bool = True
+    # Domény s HSTS (YouTube…) → blok bez portálu (žádné varování certifikátu u dítěte).
+    sinkhole_https_silent: bool = True  # env: SINKHOLE_HTTPS_SILENT
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""

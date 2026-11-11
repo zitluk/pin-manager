@@ -3,23 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PIN portál</title>
+  <title>Povolení internetu</title>
   <link rel="stylesheet" href="/static/admin.css" />
   <style>
     body { max-width: 520px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
-    .note { background: #fff7ed; border: 1px solid #fdba74; padding: .75rem 1rem; border-radius: 8px; font-size: .9rem; }
+    .kid { font-size: 1.15rem; line-height: 1.5; }
+    .note { background: #ecfdf5; border: 1px solid #6ee7b7; padding: 1rem; border-radius: 10px; margin: 1.25rem 0; }
     ul { padding-left: 1.2rem; }
-    a.unlock { font-weight: 600; }
+    a.unlock { font-weight: 600; font-size: 1.05rem; }
   </style>
 </head>
 <body>
-  <h1>PIN portál</h1>
-  <p>DNS blokování běží. Stránka s PINem se u <strong>YouTube</strong> a podobných služeb často <strong>neukáže sama</strong> – prohlížeč jde rovnou na HTTPS a bez certifikátu spojení ukončí.</p>
+  <h1>Povolení internetu</h1>
+  <p class="kid">Když ti stránka <strong>nefunguje</strong>, je zablokovaná. Zavolej rodiče – ten zde zadá PIN.</p>
   <div class="note">
-    <strong>Co dělat:</strong> zvolte doménu níže, zadejte PIN a povolení na zvolenou dobu. Nebo otevřete přímo odkaz u domény.
+    <strong>YouTube a podobné</strong> se nespouští přímo z adresy v prohlížeči (aby nebylo varování o certifikátu). Rodič otevře tuto stránku a vybere doménu.
   </div>
   {% if blacklist %}
-  <h2>Blokované stránky</h2>
+  <h2>Zablokované stránky</h2>
   <ul>
     {% for d in blacklist %}
     <li><a class="unlock" href="/unlock-for?domain={{ d }}">{{ d }}</a></li>
@@ -28,6 +29,6 @@
   {% else %}
   <p class="muted">Blacklist je prázdný.</p>
   {% endif %}
-  <p class="muted"><a href="/admin/">Administrace</a></p>
+  <p class="muted"><a href="/admin/">Administrace (rodič)</a></p>
 </body>
 </html>
