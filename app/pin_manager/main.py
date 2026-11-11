@@ -416,6 +416,31 @@ async def preview_redirect(request: Request):
     )
 
 
+def _block_page_context(domain: str, error: str | None = None):
+    target_url = _build_target_url(domain, "/", "")
+    return {
+        "target_display": target_url,
+        "target_url": target_url,
+        "host": domain,
+        "duration_options": get_settings().duration_minutes_list,
+        "error": error,
+    }
+
+
+@app.get("/unlock-for")
+async def unlock_for(request: Request, domain: str = ""):
+    """PIN stránka přes IP portálu (kvůli HSTS u YouTube atd.)."""
+    domain = _normalize_domain(domain)
+    if not domain or not get_store().is_blocked(domain):
+        return RedirectResponse("/", status_code=303)
+    log_event("blocked_access", request=request, domain=domain, detail="unlock-for")
+    return templates.TemplateResponse(
+        request,
+        "block.html",
+        _block_page_context(domain),
+    )
+
+
 @app.api_route("/unlock", methods=["GET", "POST"])
 async def unlock(
     request: Request,
@@ -516,15 +541,13 @@ async def catch_all(request: Request, path: str):
     if host in grants:
         return RedirectResponse(target_url, status_code=302)
 
-    if host not in store.list_blacklist():
+    if not store.is_blocked(host):
         if path in ("", "favicon.ico"):
-            settings = get_settings()
-            admin_hint = ""
-            if settings.portal_ip:
-                admin_hint = f'<p><a href="/admin/">Administrace blacklistu</a> (http://{settings.portal_ip}/admin/)</p>'
-            return HTMLResponse(
-                f"<h1>PIN manažer</h1><p>Blacklisted domény se zobrazí zde po DNS sinkhole.</p>{admin_hint}",
-                status_code=200,
+            store = get_store()
+            return templates.TemplateResponse(
+                request,
+                "portal_home.html",
+                {"blacklist": store.list_blacklist()},
             )
         raise HTTPException(404)
 
@@ -537,11 +560,5 @@ async def catch_all(request: Request, path: str):
     return templates.TemplateResponse(
         request,
         "block.html",
-        {
-            "target_display": target_url,
-            "target_url": target_url,
-            "host": host,
-            "duration_options": get_settings().duration_minutes_list,
-            "error": None,
-        },
+        _block_page_context(host),
     )
