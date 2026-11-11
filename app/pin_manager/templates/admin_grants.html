@@ -1,0 +1,23 @@
+{% extends "admin_base.html" %}
+{% block title %}Povolení – PIN manažer{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Dočasně povolené domény</h1>
+  <p class="muted">Po vypršení se automaticky vrátí na blacklist.</p>
+  {% if grants %}
+  <table class="table">
+    <thead><tr><th>Doména</th><th>Platné do (lokální čas serveru)</th></tr></thead>
+    <tbody>
+      {% for domain, until in grants %}
+      <tr>
+        <td><code>{{ domain }}</code></td>
+        <td>{{ until }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Žádná aktivní povolení.</p>
+  {% endif %}
+</div>
+{% endblock %}

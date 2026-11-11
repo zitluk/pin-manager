@@ -1,0 +1,40 @@
+{% extends "admin_base.html" %}
+{% block title %}Blacklist – PIN manažer{% endblock %}
+{% block content %}
+{% if message %}<div class="flash-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
+<div class="card">
+  <h1>Blacklist domén</h1>
+  <p class="muted">Domény směřují na portál (sinkhole). Po zadání PIN je možné dočasné povolení.</p>
+  <form method="post" action="/admin/domains/add" class="row-form">
+    <input type="text" name="domain" placeholder="např. example.com" required pattern="[a-zA-Z0-9.-]+" />
+    <button type="submit" class="btn">Přidat</button>
+  </form>
+</div>
+<div class="card">
+  {% if blacklist %}
+  <table class="table">
+    <thead><tr><th>Doména</th><th></th></tr></thead>
+    <tbody>
+      {% for d in blacklist %}
+      <tr>
+        <td><code>{{ d }}</code></td>
+        <td>
+          <form method="post" action="/admin/domains/remove" style="display:inline">
+            <input type="hidden" name="domain" value="{{ d }}" />
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Odebrat {{ d }}?')">Odebrat</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Blacklist je prázdný.</p>
+  {% endif %}
+</div>
+<div class="card muted">
+  <strong>Režim:</strong> {{ deploy_mode }}{% if deploy_mode == 'vlan' %} (macvlan, bez mapování portů){% endif %}<br />
+  <strong>Portál / admin:</strong> <code>{{ admin_url }}</code> (přístup přes IP, ne přes blokovanou doménu)
+</div>
+{% endblock %}
