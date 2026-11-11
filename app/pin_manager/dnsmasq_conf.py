@@ -10,6 +10,8 @@ def write_sinkhole_conf(portal_ip: str, domains: list[str], path: Path) -> None:
         "",
     ]
     for domain in domains:
+        # local= zabrání fallbacku na AAAA z internetu (prohlížeč jinak jede přes IPv6 → ERR_ADDRESS_UNREACHABLE)
+        lines.append(f"local=/{domain}/")
         lines.append(f"address=/{domain}/{portal_ip}")
     lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")

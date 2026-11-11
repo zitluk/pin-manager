@@ -31,6 +31,18 @@ U webů **bez HSTS**, pokud otevřete **http://** (ne https) a DNS ukazuje na po
 
 ---
 
+## `nslookup` ukazuje `.207` a ping jde, ale Brave hlásí ERR_ADDRESS_UNREACHABLE
+
+Často prohlížeč zkusí **IPv6 (AAAA)**. Ověření:
+
+```bash
+nslookup -type=AAAA www.centrum.cz
+```
+
+Když vrátí nějaké IPv6 → na Macu dočasně vypněte IPv6 na Wi‑Fi, nebo použijte PIN přes **http://192.168.39.207/unlock-for?domain=centrum.cz**.
+
+---
+
 ## Shrnutí
 
 | Co vidíte | Význam |
