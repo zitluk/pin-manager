@@ -1,0 +1,22 @@
+{% extends "admin_base.html" %}
+{% block title %}Rodinný PIN – PIN manažer{% endblock %}
+{% block content %}
+{% if message %}<div class="flash-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
+<div class="card">
+  <h1>Rodinný PIN</h1>
+  <p class="muted">
+    Stejný PIN používají dítě i rodič při odblokování stránek.
+    {% if uses_stored %}Uložen v aplikaci (Portainer <code>PIN=</code> se pak ignoruje).{% else %}Zatím platí PIN z Portaineru – změnou se uloží sem.{% endif %}
+  </p>
+  <form method="post" action="/admin/pin" class="row-form" style="max-width:20rem">
+    <label for="current_pin">Současný PIN</label>
+    <input type="password" name="current_pin" id="current_pin" inputmode="numeric" autocomplete="current-password" required />
+    <label for="new_pin">Nový PIN ({{ min_len }}–{{ max_len }} číslic)</label>
+    <input type="password" name="new_pin" id="new_pin" inputmode="numeric" autocomplete="new-password" required />
+    <label for="new_pin2">Nový PIN znovu</label>
+    <input type="password" name="new_pin2" id="new_pin2" inputmode="numeric" autocomplete="new-password" required />
+    <button type="submit" class="btn">Uložit nový PIN</button>
+  </form>
+</div>
+{% endblock %}

@@ -24,6 +24,13 @@ from pin_manager.admin_users import get_admin_store
 from pin_manager.audit import log_event, read_recent
 from pin_manager.blacklist_ops import add_domain, remove_domain
 from pin_manager.config import get_settings
+from pin_manager.pin_auth import (
+    MIN_PIN_LEN,
+    MAX_PIN_LEN,
+    has_stored_pin,
+    set_family_pin,
+    verify_family_pin,
+)
 from pin_manager.security import clear_attempts, is_locked, record_failed_attempt, verify_pin
 from pin_manager.store import get_store, _normalize_domain
 from pin_manager.sinkhole import publish_sinkhole
@@ -385,6 +392,55 @@ async def admin_grants_revoke(request: Request, domain: str = Form(...)):
         f"/admin/grants?message=Povolení+pro+{domain}+zrušeno",
         status_code=303,
     )
+
+
+@app.get("/admin/pin")
+async def admin_pin_get(
+    request: Request, message: str | None = None, error: str | None = None
+):
+    redir = _admin_redirect_if_needed(request)
+    if redir:
+        return redir
+    return templates.TemplateResponse(
+        request,
+        "admin_pin.html",
+        {
+            "show_nav": True,
+            "message": message,
+            "error": error,
+            "uses_stored": has_stored_pin(),
+            "min_len": MIN_PIN_LEN,
+            "max_len": MAX_PIN_LEN,
+        },
+    )
+
+
+@app.post("/admin/pin")
+async def admin_pin_post(
+    request: Request,
+    current_pin: str = Form(...),
+    new_pin: str = Form(...),
+    new_pin2: str = Form(...),
+):
+    redir = _admin_redirect_if_needed(request)
+    if redir:
+        return redir
+    if new_pin != new_pin2:
+        return RedirectResponse(
+            "/admin/pin?error=Nový+PIN+se+nerovná+potvrzení",
+            status_code=303,
+        )
+    if not verify_family_pin(current_pin):
+        return RedirectResponse(
+            "/admin/pin?error=Špatný+současný+PIN",
+            status_code=303,
+        )
+    try:
+        set_family_pin(new_pin)
+    except ValueError as e:
+        return RedirectResponse(f"/admin/pin?error={e}", status_code=303)
+    log_event("family_pin_changed", request=request)
+    return RedirectResponse("/admin/pin?message=PIN+uložen", status_code=303)
 
 
 @app.get("/admin/logs")

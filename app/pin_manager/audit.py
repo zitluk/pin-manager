@@ -24,6 +24,7 @@ ACTION_LABELS: dict[str, str] = {
     "admin_login_fail": "Neúspěšné přihlášení administrace",
     "blacklist_add": "Doména přidána na blacklist",
     "blacklist_remove": "Doména odebrána z blacklistu",
+    "family_pin_changed": "Rodinný PIN změněn v administraci",
 }
 
 

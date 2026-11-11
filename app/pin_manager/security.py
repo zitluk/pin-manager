@@ -1,24 +1,14 @@
 import time
 from collections import defaultdict
 
-import bcrypt
-
-from pin_manager.config import get_settings
+from pin_manager.pin_auth import verify_family_pin
 
 _attempts: dict[str, list[float]] = defaultdict(list)
 _lock_until: dict[str, float] = defaultdict(float)
 
 
 def verify_pin(pin_input: str) -> bool:
-    settings = get_settings()
-    if settings.pin_hash:
-        return bcrypt.checkpw(
-            pin_input.encode("utf-8"),
-            settings.pin_hash.encode("utf-8"),
-        )
-    if settings.pin:
-        return pin_input == settings.pin
-    return False
+    return verify_family_pin(pin_input)
 
 
 def _client_key(ip: str) -> str:
@@ -26,6 +16,8 @@ def _client_key(ip: str) -> str:
 
 
 def is_locked(client_ip: str) -> tuple[bool, int]:
+    from pin_manager.config import get_settings
+
     settings = get_settings()
     key = _client_key(client_ip)
     until = _lock_until.get(key, 0)
@@ -36,6 +28,8 @@ def is_locked(client_ip: str) -> tuple[bool, int]:
 
 
 def record_failed_attempt(client_ip: str) -> tuple[bool, int]:
+    from pin_manager.config import get_settings
+
     settings = get_settings()
     key = _client_key(client_ip)
     now = time.time()
