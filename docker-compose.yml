@@ -1,6 +1,4 @@
 # PIN manažer (sidecar) – napojení na existující Pi-hole v Portaineru.
-# Pi-hole admin nesmí držet host port 80, pokud má portál chytat sinkhole HTTP.
-# Doporučení: Pi-hole mapovat jen 53 + admin např. 8080:80; port 80 nechat pro pin-manager.
 
 services:
   pin-manager:
@@ -11,37 +9,28 @@ services:
       - "80:8080"
     environment:
       TZ: Europe/Prague
-      # URL Pi-hole (z Docker sítě nebo IP RPi)
       PIHOLE_URL: ${PIHOLE_URL:-http://192.168.88.10}
       PIHOLE_PASSWORD: ${PIHOLE_PASSWORD:-changeme}
-      # Hodnota PIN (v produkci nastavte v .env; lze použít PIN_HASH místo PIN)
       PIN: ${PIN:-1234}
       PIN_HASH: ${PIN_HASH:-}
-      # LAN IP RPi (stejná jako cíl address= v dnsmasq)
       PORTAL_IP: ${PORTAL_IP:-192.168.1.10}
-      # Délky povolení (minuty), oddělené čárkou
       DURATION_OPTIONS: ${DURATION_OPTIONS:-15,30,60,120}
-      # Kam zapisovat dnsmasq sinkhole (sdílený volume s Pi-hole)
       DNSMASQ_SINKHOLE_PATH: /sync/pin-sinkhole.conf
-      # Po změně sinkhole volat restart DNS v Pi-hole
       PIHOLE_RESTART_DNS: ${PIHOLE_RESTART_DNS:-true}
-      # API klíč pro správu blacklistu (volitelné)
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
     volumes:
       - pin-manager-data:/data
-      - pin-manager-dnsmasq:/sync
+      - type: bind
+        source: ${DNSMASQ_SYNC_HOST_PATH:-./dnsmasq-sync}
+        target: /sync
+        bind:
+          create_host_path: true
     networks:
       - pin-manager-net
 
 volumes:
   pin-manager-data:
-  pin-manager-dnsmasq:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DNSMASQ_SYNC_HOST_PATH:-./dnsmasq-sync}
 
 networks:
   pin-manager-net:

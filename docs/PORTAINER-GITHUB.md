@@ -71,6 +71,17 @@ environment:
   FTLCONF_misc_etc_dnsmasq_d: "true"
 ```
 
+`DNSMASQ_SYNC_HOST_PATH=/opt/pin-manager/dnsmasq-sync`  
+(Výchozí v compose je `/opt/pin-manager/dnsmasq-sync` – Docker složku vytvoří sám (`create_host_path`). **Nepoužívejte** relativní `./dnsmasq-sync` v Portaineru, pokud složka v repu není na disku hostitele.)
+
+### Chyba „no such file or directory“ u volume
+
+Starší compose používal named volume s `device: ./dnsmasq-sync` → Portainer mapoval na `/data/compose/<id>/dnsmasq-sync`, která neexistovala. Řešení: **Pull and redeploy** nového commitu, nebo nastavte absolutní cestu:
+
+```bash
+sudo mkdir -p /opt/pin-manager/dnsmasq-sync
+```
+
 `DNSMASQ_SYNC_HOST_PATH=/opt/pin-manager/dnsmasq-sync`
 
 ## 3. Portainer – stack z Gitu

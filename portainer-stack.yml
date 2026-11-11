@@ -1,5 +1,4 @@
-# Aktivní stack – po configure.py kopie vlan nebo bridge varianty.
-# Doporučení VLAN: nastavte Compose path přímo na portainer-stack.vlan.yml
+# Synonymum VLAN stacku – preferujte portainer-stack.vlan.yml
 
 services:
   pin-manager:
@@ -25,7 +24,11 @@ services:
       DEPLOY_MODE: vlan
     volumes:
       - pin-manager-data:/data
-      - pin-manager-dnsmasq:/sync
+      - type: bind
+        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
+        target: /sync
+        bind:
+          create_host_path: true
     networks:
       docker_vlan:
         ipv4_address: ${VLAN_IP}
@@ -37,9 +40,3 @@ networks:
 
 volumes:
   pin-manager-data:
-  pin-manager-dnsmasq:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DNSMASQ_SYNC_HOST_PATH}

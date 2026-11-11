@@ -1,5 +1,5 @@
 # Režim VLAN (macvlan): vlastní IP v LAN – výchozí pro 192.168.39.207 / síť docker_vlan.
-# Spusťte: python3 scripts/configure.py
+# Na hostu: nastavte DNSMASQ_SYNC_HOST_PATH (např. /opt/pin-manager/dnsmasq-sync) – stejná cesta v Pi-hole.
 
 services:
   pin-manager:
@@ -25,7 +25,11 @@ services:
       DEPLOY_MODE: vlan
     volumes:
       - pin-manager-data:/data
-      - pin-manager-dnsmasq:/sync
+      - type: bind
+        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
+        target: /sync
+        bind:
+          create_host_path: true
     networks:
       docker_vlan:
         ipv4_address: ${VLAN_IP}
@@ -37,9 +41,3 @@ networks:
 
 volumes:
   pin-manager-data:
-  pin-manager-dnsmasq:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DNSMASQ_SYNC_HOST_PATH}

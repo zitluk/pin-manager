@@ -1,4 +1,4 @@
-# Režim server IP + port (bridge). Spusťte: python3 scripts/configure.py
+# Režim server IP + port (bridge).
 
 services:
   pin-manager:
@@ -26,7 +26,11 @@ services:
       DEPLOY_MODE: bridge
     volumes:
       - pin-manager-data:/data
-      - pin-manager-dnsmasq:/sync
+      - type: bind
+        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
+        target: /sync
+        bind:
+          create_host_path: true
     networks:
       - pin-manager-net
 
@@ -36,9 +40,3 @@ networks:
 
 volumes:
   pin-manager-data:
-  pin-manager-dnsmasq:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DNSMASQ_SYNC_HOST_PATH}

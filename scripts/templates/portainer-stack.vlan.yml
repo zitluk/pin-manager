@@ -1,6 +1,3 @@
-# Režim VLAN (macvlan): kontejner má vlastní IP v LAN, bez mapování portů na hostitele.
-# V Portaineru: síť docker_vlan musí existovat (macvlan), viz docs/PORTAINER-GITHUB.md
-
 services:
   pin-manager:
     build:
@@ -25,7 +22,11 @@ services:
       DEPLOY_MODE: vlan
     volumes:
       - pin-manager-data:/data
-      - pin-manager-dnsmasq:/sync
+      - type: bind
+        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
+        target: /sync
+        bind:
+          create_host_path: true
     networks:
       docker_vlan:
         ipv4_address: ${VLAN_IP}
@@ -37,9 +38,3 @@ networks:
 
 volumes:
   pin-manager-data:
-  pin-manager-dnsmasq:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DNSMASQ_SYNC_HOST_PATH}
