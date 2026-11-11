@@ -36,12 +36,18 @@ services:
           create_host_path: true
     networks:
       docker_vlan:
-        ipv4_address: 192.168.39.207
+        ipv4_address: ${VLAN_IP:-192.168.39.207}
 
 networks:
   docker_vlan:
-    external: true
-    name: docker_vlan
+    name: ${VLAN_NETWORK_NAME:-docker_vlan}
+    driver: macvlan
+    driver_opts:
+      parent: ${MACVLAN_PARENT:-eth0}
+    ipam:
+      config:
+        - subnet: ${MACVLAN_SUBNET:-192.168.39.0/24}
+          gateway: ${MACVLAN_GATEWAY:-192.168.39.1}
 
 volumes:
   pin-manager-data:

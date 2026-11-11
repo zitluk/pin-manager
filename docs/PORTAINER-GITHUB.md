@@ -16,28 +16,22 @@ Skript se zeptá:
 
 Vygeneruje `.env`, `portainer-stack.yml` a doporučený **Compose path** pro Portainer.
 
-### VLAN – síť v Portaineru (vaše nastavení)
+### VLAN – macvlan a IP `.207`
 
-| Pole | Hodnota |
-|------|---------|
-| Driver | `macvlan` |
-| Subnet | `192.168.39.0/24` |
-| Gateway | `192.168.39.1` |
-| Název | `docker_vlan` |
-
-Kontejner PIN manažer: IP **`192.168.39.207`**, `LISTEN_PORT=80`, sinkhole `PORTAL_IP=192.168.39.207`.
+Stack **`portainer-stack.yml`** sám vytvoří síť `docker_vlan` a přidělí IP (už nemusíte síť zakládat ručně v Portaineru).
 
 V stacku env:
 
 | Klíč | Hodnota |
 |------|---------|
-| `VLAN_NETWORK_NAME` | `docker_vlan` |
-| `VLAN_IP` | `192.168.39.207` |
-| `PORTAL_IP` | `192.168.39.207` |
+| `VLAN_IP` / `PORTAL_IP` | `192.168.39.207` |
+| `MACVLAN_PARENT` | `eth0` nebo `end0` (`ip route \| grep default`) |
+| `MACVLAN_GATEWAY` | Mikrotik ve 39.x |
+| `MACVLAN_SUBNET` | `192.168.39.0/24` |
 
-**Compose path v Portaineru:** `portainer-stack.vlan.yml`
+**Compose path v Portaineru:** `portainer-stack.yml` (nebo `portainer-stack.vlan.yml` – stejné chování).
 
-Macvlan síť musí používat parent interface (v Dockeru / na hostu) – obvykle už máte síť vytvořenou jako na screenshotu v Portaineru.
+Když kontejner nemá IP: [SIT-NEJDE-207.md](./SIT-NEJDE-207.md).
 
 ### Režim server + port
 

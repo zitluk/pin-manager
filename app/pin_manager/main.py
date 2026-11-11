@@ -111,7 +111,24 @@ def _admin_redirect_if_needed(request: Request) -> RedirectResponse | None:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    settings = get_settings()
+    detected = "unknown"
+    gw = settings.portal_ip.rsplit(".", 1)[0] + ".1" if settings.portal_ip else ""
+    if gw:
+        try:
+            import socket
+
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect((gw, 1))
+                detected = s.getsockname()[0]
+        except OSError:
+            pass
+    return {
+        "status": "ok",
+        "detected_ip": detected,
+        "portal_ip": settings.portal_ip,
+        "deploy_mode": settings.deploy_mode,
+    }
 
 
 def _check_admin(request: Request | None, authorization: str | None) -> None:

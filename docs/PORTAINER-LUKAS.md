@@ -29,6 +29,9 @@ Zkráceně:
 PORTAL_IP=192.168.39.207
 VLAN_IP=192.168.39.207
 VLAN_NETWORK_NAME=docker_vlan
+MACVLAN_PARENT=eth0
+MACVLAN_SUBNET=192.168.39.0/24
+MACVLAN_GATEWAY=192.168.39.1
 DNSMASQ_SYNC_HOST_PATH=/opt/pin-manager/dnsmasq-sync
 PIHOLE_URL=http://<IP vašeho Pi-hole>
 PIHOLE_PASSWORD=<heslo Pi-hole web>
@@ -36,7 +39,27 @@ PIN=<rodičovský PIN>
 SESSION_SECRET=<volitelné; jinak se vygeneruje v /data při první registraci>
 ```
 
-`PORTAL_IP` nastavte `192.168.39.207` (nebo nechte v compose default). **Nenastavujte** prázdné `VLAN_IP` – dříve způsobilo `invalid IP`; IP je teď v compose natvrdo.
+`PORTAL_IP` a `VLAN_IP` = stejná IP (**192.168.39.207**). Síť **macvlan vytvoří stack sám** – už nemusíte ručně zakládat `docker_vlan` v Portaineru.
+
+**`MACVLAN_PARENT`** – rozhraní k síti. Na novém RPi často **`end0`**, ne `eth0`:
+
+```bash
+ip -4 route show default | awk '{print $5}'
+```
+
+Tu hodnotu vložte do env stacku jako `MACVLAN_PARENT`.
+
+### Přechod ze starého „external“ docker_vlan
+
+Jednou na RPi:
+
+```bash
+docker stop pin-manager
+docker rm pin-manager
+docker network rm docker_vlan
+```
+
+Pak **Pull and redeploy** – stack založí síť znovu s IP `.207`.
 
 ### `docker_vlan: invalid IP`
 

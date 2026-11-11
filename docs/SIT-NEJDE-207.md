@@ -50,37 +50,35 @@ ip -4 route show default
 
 ---
 
-## Oprava 2: Znovu vytvořit síť `docker_vlan`
+## Oprava 2: Kontejner nemá IP (nejčastější u vás)
 
-Na RPi zjistěte rozhraní do LAN (většinou `eth0` nebo `end0`):
+Stack **`portainer-stack.yml`** (novější verze) **sám vytvoří** macvlan síť a přidělí **`.207`**. Ve stack env musí být:
 
-```bash
-ip -4 route show default | awk '{print $5}'
-```
+| Proměnná | Příklad |
+|----------|---------|
+| `VLAN_IP` | `192.168.39.207` |
+| `MACVLAN_PARENT` | `end0` nebo `eth0` (viz `ip route`) |
+| `MACVLAN_GATEWAY` | IP Mikrotiku ve 39.x |
+| `MACVLAN_SUBNET` | `192.168.39.0/24` |
 
-Skript z repozitáře (po `git pull`):
-
-```bash
-cd /cesta/k/pin-manager   # nebo kde máte klon
-sudo bash scripts/create-docker-vlan.sh eth0
-```
-
-Nebo ručně (upravte `parent=` a `gateway=` podle Mikrotiku):
+Když dřív síť `docker_vlan` existovala jako **prázdná / špatná**, jednou smažte a redeploy:
 
 ```bash
-docker stop pin-manager 2>/dev/null
-docker network rm docker_vlan 2>/dev/null || true
-
-docker network create -d macvlan \
-  --subnet=192.168.39.0/24 \
-  --gateway=192.168.39.1 \
-  -o parent=eth0 \
-  docker_vlan
+docker stop pin-manager && docker rm pin-manager
+docker network rm docker_vlan
 ```
 
-Pak **Portainer → stack pin-manager → Pull and redeploy**.
+**Portainer → Pull and redeploy.**
 
-Gateway musí být **Mikrotik v 39.x** (často `.1`, u vás může být jiná – zkontrolujte v routeru).
+Ověření:
+
+```bash
+docker inspect pin-manager --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{$v.IPAddress}}{{"\n"}}{{end}}'
+```
+
+Má být: `docker_vlan 192.168.39.207/24`.
+
+Ruční skript jen když nepoužíváte Git stack: `scripts/create-docker-vlan.sh`.
 
 ---
 
