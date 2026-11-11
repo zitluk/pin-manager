@@ -1,98 +1,91 @@
-import json
+from __future__ import annotations
+
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
 from pin_manager.config import get_settings
+from pin_manager.fileutil import json_snapshot, json_transaction
+
+
+def _default() -> dict[str, Any]:
+    return {"blacklist": [], "grants": {}}
 
 
 class DataStore:
-    """Jednoduché úložiště blacklistu a aktivních povolení."""
+    """Úložiště blacklistu a aktivních povolení.
+
+    Každá operace čte aktuální stav z disku pod zámkem (sdílí ho HTTP i HTTPS proces)
+    a zápis je atomický.
+    """
 
     def __init__(self, path: Path) -> None:
         self._path = path
-        self._lock = threading.Lock()
-        self._load()
+        self._sanitize_domains()
 
-    def _default(self) -> dict[str, Any]:
-        return {"blacklist": [], "grants": {}}
-
-    def _load(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        if self._path.exists():
-            with open(self._path, encoding="utf-8") as f:
-                self._data = json.load(f)
-            self._sanitize_domains()
-        else:
-            self._data = self._default()
-            self._save()
+    def _read(self) -> dict[str, Any]:
+        return json_snapshot(self._path, _default)
 
     def _sanitize_domains(self) -> None:
         """Opraví staré záznamy typu https://www.youtube.com v blacklistu."""
-        with self._lock:
-            bl = list(self._data.get("blacklist", []))
-            new_bl = sorted({d for x in bl if (d := _normalize_domain(x))})
-            grants = dict(self._data.get("grants", {}))
+        with json_transaction(self._path, _default) as data:
+            bl = list(data.get("blacklist", []))
+            data["blacklist"] = sorted({d for x in bl if (d := _normalize_domain(x))})
             new_grants: dict[str, float] = {}
-            for k, v in grants.items():
+            for k, v in dict(data.get("grants", {})).items():
                 nk = _normalize_domain(k)
                 if nk:
                     new_grants[nk] = v
-            if new_bl != sorted(set(bl)) or new_grants != grants:
-                self._data["blacklist"] = new_bl
-                self._data["grants"] = new_grants
-                self._save()
-
-    def _save(self) -> None:
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(self._data, f, indent=2, ensure_ascii=False)
+            data["grants"] = new_grants
 
     def list_blacklist(self) -> list[str]:
-        with self._lock:
-            return sorted(set(self._data.get("blacklist", [])))
+        return sorted(set(self._read().get("blacklist", [])))
 
     def add_blacklist(self, domain: str) -> None:
         domain = _normalize_domain(domain)
-        with self._lock:
-            bl = set(self._data.get("blacklist", []))
+        if not domain:
+            return
+        with json_transaction(self._path, _default) as data:
+            bl = set(data.get("blacklist", []))
             bl.add(domain)
-            self._data["blacklist"] = sorted(bl)
-            self._save()
+            data["blacklist"] = sorted(bl)
 
     def remove_blacklist(self, domain: str) -> None:
         domain = _normalize_domain(domain)
-        with self._lock:
-            bl = set(self._data.get("blacklist", []))
+        with json_transaction(self._path, _default) as data:
+            bl = set(data.get("blacklist", []))
             bl.discard(domain)
-            self._data["blacklist"] = sorted(bl)
-            self._save()
+            data["blacklist"] = sorted(bl)
 
     def set_grant(self, domain: str, expires_at: float) -> None:
         domain = _normalize_domain(domain)
-        with self._lock:
-            grants = self._data.setdefault("grants", {})
-            grants[domain] = expires_at
-            self._save()
+        if not domain:
+            return
+        with json_transaction(self._path, _default) as data:
+            data.setdefault("grants", {})[domain] = expires_at
 
     def clear_grant(self, domain: str) -> None:
         domain = _normalize_domain(domain)
-        with self._lock:
-            grants = self._data.setdefault("grants", {})
-            grants.pop(domain, None)
-            self._save()
+        with json_transaction(self._path, _default) as data:
+            data.setdefault("grants", {}).pop(domain, None)
 
     def active_grants(self) -> dict[str, float]:
+        """Jen platná povolení. Prošlá NEMAŽE – to dělá pop_expired_grants() v plánovači,
+        který zároveň vrátí blokování v Pi-hole."""
         now = time.time()
-        with self._lock:
-            grants = dict(self._data.get("grants", {}))
-            expired = [d for d, ts in grants.items() if ts <= now]
+        grants = self._read().get("grants", {})
+        return {d: ts for d, ts in grants.items() if ts > now}
+
+    def pop_expired_grants(self, now: float | None = None) -> dict[str, float]:
+        """Atomicky odebere prošlá povolení a vrátí je (doména → čas vypršení)."""
+        now = time.time() if now is None else now
+        with json_transaction(self._path, _default) as data:
+            grants = data.setdefault("grants", {})
+            expired = {d: ts for d, ts in grants.items() if ts <= now}
             for d in expired:
                 grants.pop(d, None)
-            if expired:
-                self._data["grants"] = grants
-                self._save()
-            return grants
+        return expired
 
     def blacklist_match(self, domain: str) -> str | None:
         """Najde položku blacklistu pro host (www ↔ apex, poddomény typu m.youtube.com)."""
@@ -190,6 +183,14 @@ def _normalize_domain(domain: str) -> str:
     return domain
 
 
+_stores: dict[str, DataStore] = {}
+_stores_guard = threading.Lock()
+
+
 def get_store() -> DataStore:
-    settings = get_settings()
-    return DataStore(Path(settings.data_dir) / "state.json")
+    path = Path(get_settings().data_dir) / "state.json"
+    with _stores_guard:
+        store = _stores.get(str(path))
+        if store is None:
+            store = _stores[str(path)] = DataStore(path)
+        return store

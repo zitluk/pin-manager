@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import secrets
-import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,10 +29,16 @@ from pin_manager.pin_auth import (
     set_family_pin,
     verify_family_pin,
 )
-from pin_manager.security import clear_attempts, is_locked, record_failed_attempt, verify_pin
+from pin_manager.security import (
+    SCOPE_ADMIN,
+    clear_attempts,
+    is_locked,
+    record_failed_attempt,
+    verify_pin,
+)
 from pin_manager.store import get_store, _normalize_domain
 from pin_manager.sinkhole import publish_sinkhole
-from pin_manager.sync import apply_relock, apply_unlock
+from pin_manager.sync import apply_relock, apply_unlock, relock_expired
 from pin_manager.sync_status import read as read_sync_status
 from pin_manager.tls_certs import ca_cert_path, ensure_tls_material
 
@@ -87,23 +91,21 @@ async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
 
     async def expire_grants():
-        settings = get_settings()
-        portal_ip = settings.portal_ip
+        portal_ip = get_settings().portal_ip
         if not portal_ip:
             return
-        store = get_store()
-        grants = store.active_grants()
-        now = time.time()
-        for domain, exp in list(grants.items()):
-            if exp <= now:
-                try:
-                    await apply_relock(domain, portal_ip)
-                    log_event("grant_expired", domain=domain)
-                    logger.info("Platnost povolení vypršela: %s", domain)
-                except Exception as e:
-                    logger.error("Relock %s failed: %s", domain, e)
+        try:
+            relocked = await relock_expired(portal_ip)
+        except Exception as e:
+            logger.error("Relock po vypršení selhal (zkusím znovu): %s", e)
+            return
+        for domain in relocked:
+            log_event("grant_expired", domain=domain)
+            logger.info("Platnost povolení vypršela: %s", domain)
 
-    scheduler.add_job(expire_grants, "interval", seconds=30, id="expire_grants")
+    scheduler.add_job(
+        expire_grants, "interval", seconds=30, id="expire_grants", max_instances=1, coalesce=True
+    )
     scheduler.start()
     yield
     if startup_sync_task and not startup_sync_task.done():
@@ -274,14 +276,33 @@ async def admin_login_post(
     password: str = Form(...),
 ):
     admins = get_admin_store()
-    if not admins.verify(username, password):
-        log_event("admin_login_fail", request=request, detail=username.strip().lower())
+    ip = request.client.host if request.client else ""
+    locked, remain = is_locked(ip, SCOPE_ADMIN)
+    if locked:
+        log_event("admin_login_lockout", request=request, detail=f"zbývá {remain} s")
         return templates.TemplateResponse(
             request,
             "admin_login.html",
-            {"show_nav": False, "error": "Neplatné jméno nebo heslo."},
+            {
+                "show_nav": False,
+                "error": f"Příliš mnoho pokusů – zkuste znovu za {remain} s.",
+            },
+            status_code=429,
+        )
+    if not admins.verify(username, password):
+        locked_now, sec = record_failed_attempt(ip, SCOPE_ADMIN)
+        log_event("admin_login_fail", request=request, detail=username.strip().lower())
+        err = "Neplatné jméno nebo heslo."
+        if locked_now:
+            log_event("admin_login_lockout", request=request, detail=f"{sec // 60} min")
+            err += f" Příliš mnoho pokusů – uzamčeno na {sec // 60} min."
+        return templates.TemplateResponse(
+            request,
+            "admin_login.html",
+            {"show_nav": False, "error": err},
             status_code=401,
         )
+    clear_attempts(ip, SCOPE_ADMIN)
     log_event("admin_login_ok", request=request, detail=username.strip().lower())
     resp = RedirectResponse("/admin/", status_code=303)
     set_admin_cookie(resp, username.strip().lower())
@@ -596,6 +617,9 @@ async def unlock(
 
     if not pin or minutes is None or not host:
         raise HTTPException(400, "Chybí údaje formuláře")
+    # Jen délky nabízené v UI – jinak by šlo poslat např. minutes=999999
+    if minutes not in get_settings().duration_minutes_list:
+        raise HTTPException(400, "Neplatná délka povolení")
 
     domain = _normalize_domain(host)
     if not get_store().is_blocked(domain) and domain not in get_store().list_blacklist():

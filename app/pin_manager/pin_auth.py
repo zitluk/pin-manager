@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import json
-import threading
 from pathlib import Path
 from typing import Any
 
 import bcrypt
 
 from pin_manager.config import get_settings
+from pin_manager.fileutil import atomic_write_json, file_lock
 
-_lock = threading.Lock()
 MIN_PIN_LEN = 4
 MAX_PIN_LEN = 12
 
@@ -86,9 +85,5 @@ def set_family_pin(new_pin: str) -> None:
         bcrypt.gensalt(),
     ).decode("utf-8")
     p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with _lock:
-        p.write_text(
-            json.dumps({"pin_hash": pin_hash}, indent=2),
-            encoding="utf-8",
-        )
+    with file_lock(p):
+        atomic_write_json(p, {"pin_hash": pin_hash})

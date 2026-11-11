@@ -22,6 +22,7 @@ ACTION_LABELS: dict[str, str] = {
     "admin_register": "Registrace administrátora",
     "admin_login_ok": "Přihlášení administrace",
     "admin_login_fail": "Neúspěšné přihlášení administrace",
+    "admin_login_lockout": "Přihlášení administrace uzamčeno (příliš pokusů)",
     "blacklist_add": "Doména přidána na blacklist",
     "blacklist_remove": "Doména odebrána z blacklistu",
     "family_pin_changed": "Rodinný PIN změněn v administraci",
