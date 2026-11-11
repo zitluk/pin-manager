@@ -26,7 +26,8 @@ from pin_manager.config import get_settings
 from pin_manager.pihole import PiHoleClient
 from pin_manager.security import clear_attempts, is_locked, record_failed_attempt, verify_pin
 from pin_manager.store import get_store, _normalize_domain
-from pin_manager.sync import apply_relock, apply_unlock, write_sinkhole_conf
+from pin_manager.sinkhole import publish_sinkhole
+from pin_manager.sync import apply_relock, apply_unlock
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,16 +54,10 @@ async def lifespan(app: FastAPI):
     store = get_store()
     portal_ip = settings.portal_ip
     if portal_ip:
-        write_sinkhole_conf(
-            portal_ip,
-            store.blocked_domains_for_sinkhole(),
-            Path(settings.dnsmasq_sinkhole_path),
-        )
-        ph = PiHoleClient()
         try:
-            await ph.restart_dns()
+            await publish_sinkhole(portal_ip)
         except Exception as e:
-            logger.warning("Po startu se nepodařilo restartovat DNS v Pi-hole: %s", e)
+            logger.warning("Po startu se nepodařilo synchronizovat Pi-hole DNS: %s", e)
 
     scheduler = AsyncIOScheduler()
 

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     duration_options: str = "15,30,60,120"
     dnsmasq_sinkhole_path: str = "/sync/pin-sinkhole.conf"
     pihole_restart_dns: bool = True
+    # api = Local DNS přes Pi-hole API (bez sdíleného souboru); file = dnsmasq sync
+    pihole_sinkhole_mode: str = "api"
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""

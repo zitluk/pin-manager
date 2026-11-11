@@ -75,6 +75,35 @@ class PiHoleClient:
                 timeout=30.0,
             )
 
+    async def get_dns_hosts(self, client: httpx.AsyncClient, sid: str) -> list[str]:
+        r = await client.get(
+            f"{self.base}/api/config/dns/hosts",
+            headers=self._headers(sid),
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        data = r.json()
+        return list(data.get("config", {}).get("dns", {}).get("hosts", []) or [])
+
+    async def sync_pin_dns_hosts(self, portal_ip: str, domains: list[str]) -> None:
+        """Nastaví v Pi-hole Local DNS: portal_ip → doména (viditelné v UI)."""
+        prefix = f"{portal_ip} "
+        async with httpx.AsyncClient() as client:
+            sid = await self._login(client)
+            existing = await self.get_dns_hosts(client, sid)
+            kept = [h for h in existing if not h.startswith(prefix)]
+            for domain in sorted(set(domains)):
+                kept.append(f"{portal_ip} {domain}")
+            r = await client.patch(
+                f"{self.base}/api/config",
+                headers=self._headers(sid),
+                json={"config": {"dns": {"hosts": kept}}},
+                timeout=60.0,
+            )
+            if r.status_code >= 400:
+                logger.warning("PATCH dns.hosts failed %s: %s", r.status_code, r.text)
+                r.raise_for_status()
+
     async def restart_dns(self) -> None:
         if not self.settings.pihole_restart_dns:
             return

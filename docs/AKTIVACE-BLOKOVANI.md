@@ -46,7 +46,9 @@ Když nslookup vrátí reálnou IP YouTube → blokování **neběží** (špatn
 
 ### 6. Pi-hole API (volitelně)
 
-`PIHOLE_URL` a `PIHOLE_PASSWORD` – pokud špatně, sinkhole soubor se stejně zapisuje z PIN manažeru, ale restart DNS v Pi-hole z API může selhat → ručně restart DNS.
+**Doporučené napojení:** `PIHOLE_SINKHOLE_MODE=api` – PIN manažer zapisuje záznamy přímo do Pi-hole (Local DNS). Není potřeba sdílet složku s Pi-hole. Viz **[PIHOLE-NAPOJENI.md](./PIHOLE-NAPOJENI.md)**.
+
+`PIHOLE_URL` a `PIHOLE_PASSWORD` – pokud špatně, API sync selže (v logu pin-manager). Režim `file` níže vyžaduje navíc sdílený soubor.
 
 ---
 
