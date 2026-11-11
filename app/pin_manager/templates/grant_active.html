@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dočasně povoleno</title>
+  <link rel="stylesheet" href="/static/admin.css" />
+  <style>
+    body { max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    .flash-ok { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Stránka je dočasně povolená</h1>
+  <p class="flash-ok">
+    <strong>{{ host }}</strong> má aktivní povolení do <strong>{{ expires_at }}</strong>.
+    Proto se nezobrazuje formulář s PIN – to je záměr po úspěšném odblokování.
+  </p>
+  <p>Zkuste otevřít přímo:</p>
+  <p><a href="{{ target_url }}">{{ target_url }}</a></p>
+  <p class="muted">Pokud se stránka nenačte, počkejte pár vteřin a obnovte (DNS). Rodič může povolení zrušit v <a href="/admin/grants">administraci → Aktivní povolení</a>.</p>
+</body>
+</html>

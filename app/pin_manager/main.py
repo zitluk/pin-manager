@@ -5,7 +5,7 @@ import logging
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -542,7 +542,23 @@ def _block_page_context(domain: str, error: str | None = None):
 async def unlock_for(request: Request, domain: str = ""):
     """PIN stránka přes IP portálu (kvůli HSTS u YouTube atd.)."""
     domain = _normalize_domain(domain)
-    if not domain or not get_store().is_blocked(domain):
+    store = get_store()
+    if not domain:
+        return RedirectResponse("/", status_code=303)
+    if not store.is_blocked(domain):
+        until = store.active_grant_until(domain)
+        if store.blacklist_match(domain) and until:
+            return templates.TemplateResponse(
+                request,
+                "grant_active.html",
+                {
+                    "host": store.blacklist_match(domain) or domain,
+                    "target_url": _build_target_url(domain, "/", ""),
+                    "expires_at": datetime.fromtimestamp(
+                        until, tz=timezone.utc
+                    ).astimezone().strftime("%d.%m.%Y %H:%M"),
+                },
+            )
         return RedirectResponse("/", status_code=303)
     log_event("blocked_access", request=request, domain=domain, detail="unlock-for")
     return templates.TemplateResponse(
@@ -648,9 +664,22 @@ async def catch_all(request: Request, path: str):
         str(request.url.query) if request.url.query else "",
     )
 
+    bl_entry = store.blacklist_match(host)
     if not store.is_blocked(host):
+        grant_until = store.active_grant_until(host)
+        if bl_entry and grant_until and path in ("", "favicon.ico"):
+            return templates.TemplateResponse(
+                request,
+                "grant_active.html",
+                {
+                    "host": bl_entry,
+                    "target_url": _build_target_url(bl_entry, "/", ""),
+                    "expires_at": datetime.fromtimestamp(
+                        grant_until, tz=timezone.utc
+                    ).astimezone().strftime("%d.%m.%Y %H:%M"),
+                },
+            )
         if path in ("", "favicon.ico"):
-            store = get_store()
             return templates.TemplateResponse(
                 request,
                 "portal_home.html",

@@ -95,11 +95,11 @@ class DataStore:
             return grants
 
     def blacklist_match(self, domain: str) -> str | None:
-        """Najde položku blacklistu pro host (včetně www ↔ apex)."""
+        """Najde položku blacklistu pro host (www ↔ apex, poddomény typu m.youtube.com)."""
         domain = _normalize_domain(domain)
         if not domain:
             return None
-        bl = {_normalize_domain(d) for d in self.list_blacklist()}
+        bl = sorted({_normalize_domain(d) for d in self.list_blacklist()}, key=len, reverse=True)
         if domain in bl:
             return domain
         if domain.startswith("www."):
@@ -108,6 +108,24 @@ class DataStore:
                 return apex
         elif f"www.{domain}" in bl:
             return domain
+        for d in bl:
+            if domain.endswith("." + d):
+                return d
+        return None
+
+    def active_grant_until(self, domain: str) -> float | None:
+        """Čas vypršení grantu pro host (včetně www/apex)."""
+        domain = _normalize_domain(domain)
+        if not domain:
+            return None
+        grants = self.active_grants()
+        canonical = self.blacklist_match(domain)
+        keys = set(_domain_variants(domain))
+        if canonical:
+            keys |= _domain_variants(canonical)
+        for k in keys:
+            if k in grants:
+                return grants[k]
         return None
 
     def is_blocked(self, domain: str) -> bool:

@@ -21,3 +21,6 @@ def test_blacklist_and_grants():
     store.add_blacklist("www-match.test")
     assert store.is_blocked("www.www-match.test")
     store.remove_blacklist("www-match.test")
+    store.add_blacklist("sub.test")
+    assert store.blacklist_match("api.sub.test") == "sub.test"
+    store.remove_blacklist("sub.test")
