@@ -55,5 +55,6 @@ Nastavení webhooku + GitHub secret: **[AUTO-DEPLOY.md](AUTO-DEPLOY.md)**.
 
 ## Časté chyby
 
-1. **Compose path** `docker-compose.yml` → mapuje host :80 → použijte `portainer-stack.yml`.
+1. **„address already in use“ :8080 nebo :80** – stack stále drží starý compose s `ports:` (např. dřívější `docker-compose.yml`). **Stacks → Remove stack** (včetně kontejneru), znovu **Add stack** z Gitu, compose **`portainer-stack.yml`**. Nepoužívejte `portainer-stack.bridge.yml`.
 2. **Síť docker_vlan** musí v Portaineru existovat (macvlan, subnet 192.168.39.0/24).
+3. Ve stacku vypněte / neskládejte **Web editor** přes starý YAML s `ports:` – musí platit jen soubor z Gitu.

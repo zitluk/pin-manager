@@ -1,0 +1,19 @@
+# Pouze lokální vývoj na PC (bridge + port 8080). Nepoužívat v Portaineru na RPi.
+
+services:
+  pin-manager:
+    build: ./app
+    ports:
+      - "8765:8080"
+    environment:
+      LISTEN_PORT: "8080"
+      PREVIEW_ENABLED: "true"
+      PORTAL_IP: 127.0.0.1
+      PIHOLE_URL: http://127.0.0.1
+      PIHOLE_PASSWORD: x
+      PIN: "1234"
+      ADMIN_TOKEN: dev
+      SESSION_SECRET: dev
+      DATA_DIR: /data
+    volumes:
+      - ./dnsmasq-sync:/sync

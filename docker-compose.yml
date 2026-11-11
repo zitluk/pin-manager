@@ -1,38 +1,45 @@
-# PIN manažer (sidecar) – napojení na existující Pi-hole v Portaineru.
+# STEJNÝ SOUBOR JAKO portainer-stack.yml – VLAN 192.168.39.207, ŽÁDNÉ ports na hostiteli.
+# Portainer: libovolně portainer-stack.yml NEBO docker-compose.yml – obojí bez mapování portů.
 
 services:
   pin-manager:
-    build: ./app
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: pin-manager:latest
     container_name: pin-manager
     restart: unless-stopped
-    # Lokální vývoj – ne 80 (koliduje s Pi-hole). Pro Portainer VLAN viz portainer-stack.vlan.yml (bez ports).
-    ports:
-      - "8080:8080"
     environment:
       TZ: Europe/Prague
-      PIHOLE_URL: ${PIHOLE_URL:-http://192.168.88.10}
-      PIHOLE_PASSWORD: ${PIHOLE_PASSWORD:-changeme}
-      PIN: ${PIN:-1234}
+      LISTEN_PORT: "80"
+      DEPLOY_MODE: vlan
+      PORTAL_IP: ${PORTAL_IP:-192.168.39.207}
+      VLAN_IP: ${VLAN_IP:-192.168.39.207}
+      VLAN_NETWORK_NAME: ${VLAN_NETWORK_NAME:-docker_vlan}
+      PIHOLE_URL: ${PIHOLE_URL}
+      PIHOLE_PASSWORD: ${PIHOLE_PASSWORD}
+      PIN: ${PIN}
       PIN_HASH: ${PIN_HASH:-}
-      PORTAL_IP: ${PORTAL_IP:-192.168.1.10}
       DURATION_OPTIONS: ${DURATION_OPTIONS:-15,30,60,120}
       DNSMASQ_SINKHOLE_PATH: /sync/pin-sinkhole.conf
       PIHOLE_RESTART_DNS: ${PIHOLE_RESTART_DNS:-true}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
       SESSION_SECRET: ${SESSION_SECRET:-}
     volumes:
       - pin-manager-data:/data
       - type: bind
-        source: ${DNSMASQ_SYNC_HOST_PATH:-./dnsmasq-sync}
+        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
         target: /sync
         bind:
           create_host_path: true
     networks:
-      - pin-manager-net
+      docker_vlan:
+        ipv4_address: ${VLAN_IP:-192.168.39.207}
+
+networks:
+  docker_vlan:
+    external: true
+    name: ${VLAN_NETWORK_NAME:-docker_vlan}
 
 volumes:
   pin-manager-data:
-
-networks:
-  pin-manager-net:
-    driver: bridge
