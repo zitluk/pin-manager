@@ -6,6 +6,7 @@ services:
       context: ./app
       dockerfile: Dockerfile
     image: pin-manager:latest
+    pull_policy: build
     container_name: pin-manager
     restart: unless-stopped
     environment:

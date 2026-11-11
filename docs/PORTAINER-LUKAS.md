@@ -62,6 +62,20 @@ V Pi-hole stacku volume:
 FTLCONF_misc_etc_dnsmasq_d: "true"
 ```
 
+## Chyba „pull access denied for pin-manager“
+
+Image **není na Docker Hubu** – vzniká **buildem** ze složky `app/` v Gitu. V compose je `pull_policy: build`.
+
+Ve stacku: **Pull and redeploy** po novém commitu. Pokud Portainer stále táhne z registru, v nastavení stacku vypněte **Pull latest image** / nechte jen **Build** (podle verze UI: *Deployment* → build from repository).
+
+Ručně na RPi (v adresáři, kam Portainer klonuje repo):
+
+```bash
+cd /data/compose/<id>
+docker compose -f portainer-stack.yml build --no-cache
+docker compose -f portainer-stack.yml up -d
+```
+
 ## Automatický redeploy po `git push`
 
 Nastavení webhooku + GitHub secret: **[AUTO-DEPLOY.md](AUTO-DEPLOY.md)**.
