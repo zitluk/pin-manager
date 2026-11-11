@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nastavení zařízení</title>
+  <link rel="stylesheet" href="/static/admin.css" />
+  <style>
+    body { max-width: 640px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.5; }
+    .check { display: flex; gap: .6rem; align-items: baseline; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 8px; margin: .5rem 0; }
+    .check .st { font-weight: 700; min-width: 1.4rem; }
+    .ok .st { color: #1a7f37; } .bad .st { color: #c62828; } .wait .st { color: #888; }
+    .hint { font-size: .92rem; color: #555; margin: .2rem 0 0; }
+    h2 { margin-top: 2rem; font-size: 1.15rem; }
+    ol li { margin: .35rem 0; }
+    a.btn { display: inline-block; padding: .5rem .9rem; border-radius: 6px; background: #1f6feb; color: #fff; text-decoration: none; margin: .2rem .4rem .2rem 0; }
+    code { background: #f2f2f2; padding: 0 .25rem; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Nastavení zařízení</h1>
+  <p>Aby se u blokovaných stránek (i YouTube přes HTTPS) zobrazil formulář s PINem, musí zařízení
+    <strong>používat domácí DNS</strong> a <strong>důvěřovat domácímu certifikátu</strong>.
+    Tato stránka to na tomto zařízení ověří.</p>
+
+  <h2>Kontrola tohoto zařízení</h2>
+  {% if test_domain %}
+  <div class="check wait" id="c-dns"><span class="st">…</span><div>
+    <div>DNS: <code>{{ test_domain }}</code> vede na portál</div>
+    <p class="hint" id="h-dns"></p></div></div>
+  <div class="check wait" id="c-tls"><span class="st">…</span><div>
+    <div>HTTPS: zařízení důvěřuje domácímu certifikátu</div>
+    <p class="hint" id="h-tls"></p></div></div>
+  {% else %}
+  <p class="muted">Na blacklistu teď není žádná blokovaná doména – kontrolu nejde spustit.</p>
+  {% endif %}
+
+  <h2>iPhone / iPad</h2>
+  <ol>
+    <li>Otevřete tuto stránku v <strong>Safari</strong> a stáhněte profil:
+      <a class="btn" href="/ca.mobileconfig">Stáhnout profil</a></li>
+    <li><em>Nastavení → Profil stažen → Instalovat</em>.</li>
+    <li><strong>Nutné:</strong> <em>Nastavení → Obecné → Informace → Nastavení důvěryhodnosti certifikátů</em>
+      → zapnout <strong>{{ ca_name }}</strong>.</li>
+    <li><em>Nastavení → [vaše jméno] → iCloud → Soukromý přenos</em> vypnout
+      (síť ho blokuje, ale vypnutí zabrání hláškám).</li>
+    <li>Wi-Fi: u domácí sítě vypnout <em>Omezit sledování IP adresy</em> a nemít ručně nastavené DNS.</li>
+  </ol>
+
+  <h2>Mac</h2>
+  <ol>
+    <li>Stáhněte <a class="btn" href="/ca.mobileconfig">profil</a> nebo <a href="/ca.crt">certifikát (.crt)</a>.</li>
+    <li>Profil: <em>Nastavení systému → Obecné → Správa zařízení</em> → nainstalovat.<br />
+      Certifikát: otevřít v <em>Klíčence</em> → dvakrát kliknout na <strong>{{ ca_name }}</strong>
+      → <em>Důvěra → Při použití tohoto certifikátu: Vždy důvěřovat</em>.</li>
+    <li>Zavřete a znovu otevřete Safari.</li>
+  </ol>
+
+  <h2>Windows / Android</h2>
+  <ol>
+    <li>Stáhněte <a href="/ca.crt">certifikát (.crt)</a>.</li>
+    <li>Windows: otevřít → <em>Nainstalovat certifikát → Místní počítač → Důvěryhodné kořenové certifikační autority</em>.</li>
+    <li>Android: <em>Nastavení → Zabezpečení → Šifrování a pověření → Instalovat certifikát → Certifikát CA</em>.</li>
+    <li>V Chrome vypnout <em>Nastavení → Ochrana soukromí → Používat zabezpečené DNS</em>.</li>
+  </ol>
+
+  <p class="muted" style="margin-top:2rem"><a href="/">Zpět na portál</a> · <a href="/admin/">Administrace</a></p>
+
+  {% if test_domain %}
+  <script>
+  (function () {
+    var d = {{ test_domain | tojson }};
+    function set(id, ok, hint) {
+      var el = document.getElementById('c-' + id);
+      el.className = 'check ' + (ok ? 'ok' : 'bad');
+      el.querySelector('.st').textContent = ok ? '✓' : '✗';
+      document.getElementById('h-' + id).textContent = hint || '';
+    }
+    function probe(url) {
+      var ctl = new AbortController();
+      var t = setTimeout(function () { ctl.abort(); }, 6000);
+      return fetch(url + '?t=' + Date.now(), { mode: 'cors', cache: 'no-store', signal: ctl.signal })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { clearTimeout(t); return !!(j && j.portal); })
+        .catch(function () { clearTimeout(t); return false; });
+    }
+    Promise.all([probe('http://' + d + '/__pin/check'), probe('https://' + d + '/__pin/check')])
+      .then(function (res) {
+        var http = res[0], https = res[1];
+        if (https) {
+          set('dns', true, '');
+          set('tls', true, 'Vše v pořádku – blokované stránky zobrazí PIN.');
+        } else if (http) {
+          set('dns', true, '');
+          set('tls', false, 'Certifikát není důvěryhodný. HTTPS stránky (YouTube) se neotevřou vůbec. Postupujte podle návodu níže – na iPhonu nezapomeňte na „Nastavení důvěryhodnosti certifikátů“.');
+        } else {
+          set('dns', false, 'Zařízení se k portálu nedostalo. Buď nepoužívá domácí DNS (Soukromý přenos iCloud, zabezpečené DNS v prohlížeči, VPN, ručně nastavené DNS), nebo – u webů s vynuceným HTTPS – nedůvěřuje certifikátu.');
+          set('tls', false, 'Nejde ověřit, dokud neprojde DNS (nebo nainstalujte certifikát a zkuste znovu).');
+        }
+      });
+  })();
+  </script>
+  {% endif %}
+</body>
+</html>

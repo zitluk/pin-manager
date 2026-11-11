@@ -28,14 +28,30 @@ async def _sync_pihole_api(
     apex_domains: list[str],
     *,
     silent_apex: list[str],
+    portal_apex: list[str],
 ) -> int:
     await _clear_gravity_denies(ph, portal_hosts)
-    await ph.sync_pin_dns_hosts(portal_ip, portal_hosts)
+    try:
+        # Hlavní cesta: address=/doména/PORTAL_IP – blokuje i všechny poddomény
+        await ph.sync_pin_dnsmasq_lines(portal_ip, portal_apex)
+        # Staré přesné Local DNS záznamy z předchozích verzí uklidit
+        await ph.sync_pin_dns_hosts(portal_ip, [])
+        written = len(portal_apex)
+    except Exception as e:
+        # Starší Pi-hole bez misc.dnsmasq_lines v API → aspoň přesná jména
+        logger.warning("dnsmasq_lines nejde (%s) – záložně Local DNS záznamy", e)
+        await ph.sync_pin_dns_hosts(portal_ip, portal_hosts)
+        written = len(portal_hosts)
     # Vždy sync (i prázdný seznam) – odstraní staré pin-manager-silent deny po vypnutí tichého režimu.
     silent_count = await ph.sync_pin_silent_block(silent_apex)
-    aaaa_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
+    try:
+        regex_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
+    except Exception as e:
+        # Nesmí shodit sync (a tím odemykání PINem) – A záznamy už platí
+        logger.warning("Regex pravidla (AAAA/HTTPS/SVCB/anti-obchvat) selhala: %s", e)
+        regex_rules = 0
     await ph.restart_dns()
-    return len(portal_hosts) + silent_count + aaaa_rules
+    return written + silent_count + regex_rules
 
 
 async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
@@ -67,6 +83,7 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
                     portal_hosts,
                     apex_domains,
                     silent_apex=silent_apex,
+                        portal_apex=portal_apex,
                 )
             else:
                 async with pihole_api() as client:
@@ -76,6 +93,7 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
                         portal_hosts,
                         apex_domains,
                         silent_apex=silent_apex,
+                        portal_apex=portal_apex,
                     )
             api_ok = True
         except Exception as e:
