@@ -18,6 +18,11 @@ To je celé „nastavení Pi-hole“ z vaše strany.
 
 ---
 
+## Kam to v Portaineru kliknout
+
+Podrobný návod s obrázky cesty menu: **[PORTAINER-ENV-KAM.md](./PORTAINER-ENV-KAM.md)**  
+(Zásobníky → **pin-manager** → **Environment variables** / Proměnné prostředí.)
+
 ## Co vyplníte jen v Portaineru (stack pin-manager)
 
 | Proměnná | Co tam dát |
