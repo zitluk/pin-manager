@@ -1,17 +1,25 @@
 {% extends "admin_base.html" %}
 {% block title %}Povolení – PIN manažer{% endblock %}
 {% block content %}
+{% if message %}<div class="flash-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
 <div class="card">
   <h1>Dočasně povolené domény</h1>
-  <p class="muted">Po vypršení se automaticky vrátí na blacklist.</p>
+  <p class="muted">Po vypršení se automaticky vrátí na blacklist. Tlačítkem „Zrušit“ okamžitě znovu zablokujete.</p>
   {% if grants %}
   <table class="table">
-    <thead><tr><th>Doména</th><th>Platné do (lokální čas serveru)</th></tr></thead>
+    <thead><tr><th>Doména</th><th>Platné do (lokální čas serveru)</th><th></th></tr></thead>
     <tbody>
       {% for domain, until in grants %}
       <tr>
         <td><code>{{ domain }}</code></td>
         <td>{{ until }}</td>
+        <td>
+          <form method="post" action="/admin/grants/revoke" style="display:inline">
+            <input type="hidden" name="domain" value="{{ domain }}" />
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Zrušit povolení pro {{ domain }}?')">Zrušit</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>

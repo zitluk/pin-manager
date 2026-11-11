@@ -337,7 +337,11 @@ async def admin_sync_now(request: Request):
 
 
 @app.get("/admin/grants")
-async def admin_grants(request: Request):
+async def admin_grants(
+    request: Request,
+    message: str | None = None,
+    error: str | None = None,
+):
     redir = _admin_redirect_if_needed(request)
     if redir:
         return redir
@@ -350,7 +354,36 @@ async def admin_grants(request: Request):
     return templates.TemplateResponse(
         request,
         "admin_grants.html",
-        {"show_nav": True, "grants": grants},
+        {"show_nav": True, "grants": grants, "message": message, "error": error},
+    )
+
+
+@app.post("/admin/grants/revoke")
+async def admin_grants_revoke(request: Request, domain: str = Form(...)):
+    redir = _admin_redirect_if_needed(request)
+    if redir:
+        return redir
+    domain = _normalize_domain(domain)
+    settings = get_settings()
+    if not domain:
+        return RedirectResponse("/admin/grants?error=Neplatná+doména", status_code=303)
+    grants = get_store().active_grants()
+    if domain not in grants:
+        return RedirectResponse(
+            f"/admin/grants?error=Doména+{domain}+nemá+aktivní+povolení",
+            status_code=303,
+        )
+    if not settings.portal_ip:
+        return RedirectResponse("/admin/grants?error=Chybí+PORTAL_IP", status_code=303)
+    try:
+        await apply_relock(domain, settings.portal_ip)
+    except Exception as e:
+        logger.exception("admin revoke grant")
+        return RedirectResponse(f"/admin/grants?error={e}", status_code=303)
+    log_event("grant_revoked", request=request, domain=domain)
+    return RedirectResponse(
+        f"/admin/grants?message=Povolení+pro+{domain}+zrušeno",
+        status_code=303,
     )
 
 
