@@ -74,6 +74,19 @@ environment:
 `DNSMASQ_SYNC_HOST_PATH=/opt/pin-manager/dnsmasq-sync`  
 (Výchozí v compose je `/opt/pin-manager/dnsmasq-sync` – Docker složku vytvoří sám (`create_host_path`). **Nepoužívejte** relativní `./dnsmasq-sync` v Portaineru, pokud složka v repu není na disku hostitele.)
 
+### Chyba „address already in use“ na portu 80
+
+Port **80 na hostiteli** už používá jiná služba (často **Pi-hole** nebo nginx).
+
+| Režim | Řešení |
+|--------|--------|
+| **VLAN** (`192.168.39.207`) | Compose path musí být **`portainer-stack.vlan.yml`** – **žádné** `ports:` na hostiteli. Kontejner má vlastní IP a port 80 jen na ní. |
+| **Bridge** | Nepublikujte 80, pokud je obsazený – u PIN sinkhole je VLAN vhodnější. Bridge dává smysl jen když host port 80 volný. |
+
+V Portaineru zkontrolujte **Compose path** – nepoužívejte `docker-compose.yml` ani `portainer-stack.bridge.yml`, pokud chcete macvlan.
+
+Po změně path: stack **Remove** → znovu **Deploy** (nebo Pull and redeploy).
+
 ### Chyba „no such file or directory“ u volume
 
 Starší compose používal named volume s `device: ./dnsmasq-sync` → Portainer mapoval na `/data/compose/<id>/dnsmasq-sync`, která neexistovala. Řešení: **Pull and redeploy** nového commitu, nebo nastavte absolutní cestu:

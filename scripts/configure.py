@@ -93,7 +93,7 @@ def main() -> None:
 
     use_vlan = ask_bool("Chcete použít VLAN (macvlan) s vlastní IP?", default=True)
 
-    pihole_url = ask("URL Pi-hole", "http://192.168.39.1")
+    pihole_url = ask("URL Pi-hole", "http://192.168.39.10")
     pihole_password = ask("Heslo webu Pi-hole")
     sync_path = ask("Cesta sinkhole na hostu (sdílená s Pi-hole)", "/opt/pin-manager/dnsmasq-sync")
     pin = ask("Rodičovský PIN", "1234")
@@ -114,7 +114,7 @@ def main() -> None:
 
     if use_vlan:
         vlan_name = ask("Název Docker sítě (macvlan)", "docker_vlan")
-        vlan_ip = ask("IP kontejneru ve VLAN", "192.168.39.207")
+        vlan_ip = ask("IP kontejneru ve VLAN (PIN portál)", "192.168.39.207")
         if not valid_ip(vlan_ip):
             raise SystemExit(f"Neplatná IP: {vlan_ip}")
 

@@ -5,8 +5,9 @@ services:
     build: ./app
     container_name: pin-manager
     restart: unless-stopped
+    # Lokální vývoj – ne 80 (koliduje s Pi-hole). Pro Portainer VLAN viz portainer-stack.vlan.yml (bez ports).
     ports:
-      - "80:8080"
+      - "8080:8080"
     environment:
       TZ: Europe/Prague
       PIHOLE_URL: ${PIHOLE_URL:-http://192.168.88.10}
