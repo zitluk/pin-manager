@@ -18,6 +18,7 @@ ACTION_LABELS: dict[str, str] = {
     "pin_lockout": "PIN uzamčen (příliš pokusů)",
     "pin_unlock": "Přístup povolen po PIN",
     "grant_expired": "Platnost povolení vypršela",
+    "admin_register": "Registrace administrátora",
     "admin_login_ok": "Přihlášení administrace",
     "admin_login_fail": "Neúspěšné přihlášení administrace",
     "blacklist_add": "Doména přidána na blacklist",

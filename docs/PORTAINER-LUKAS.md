@@ -20,8 +20,7 @@ DNSMASQ_SYNC_HOST_PATH=/opt/pin-manager/dnsmasq-sync
 PIHOLE_URL=http://<IP vašeho Pi-hole>
 PIHOLE_PASSWORD=<heslo Pi-hole web>
 PIN=<rodičovský PIN>
-ADMIN_TOKEN=<dlouhý token>
-SESSION_SECRET=<jiný dlouhý secret>
+SESSION_SECRET=<volitelné; jinak se vygeneruje v /data při první registraci>
 ```
 
 `PORTAL_IP` nastavte `192.168.39.207` (nebo nechte v compose default). **Nenastavujte** prázdné `VLAN_IP` – dříve způsobilo `invalid IP`; IP je teď v compose natvrdo.
@@ -82,7 +81,10 @@ Nastavení webhooku + GitHub secret: **[AUTO-DEPLOY.md](AUTO-DEPLOY.md)**.
 
 ## Po deployi
 
-- Admin: **http://192.168.39.207/admin/**
+- Admin: **http://192.168.39.207/admin/** → při prvním návštěvě **registrace administrátora** (jméno + heslo)
+- **API token** se zobrazí jednou po registraci; uložte ho pro REST (`Authorization: Bearer …`)
+
+`ADMIN_TOKEN` v Portaineru už **nepotřebujete** (volitelný legacy).
 - Port 80 na **hostiteli RPi** se neobsazuje – konflikt s Pi-hole na host:80 tím pádem nevzniká.
 
 ## Časté chyby

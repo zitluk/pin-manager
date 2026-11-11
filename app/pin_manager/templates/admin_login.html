@@ -2,12 +2,13 @@
 {% block title %}Přihlášení – PIN manažer{% endblock %}
 {% block content %}
 <div class="card" style="max-width:400px;margin:3rem auto;">
-  <h1>Administrace</h1>
-  <p class="muted">Přihlaste se admin tokenem z Portaineru / <code>.env</code>.</p>
+  <h1>Přihlášení</h1>
   {% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
   <form method="post" action="/admin/login">
-    <label for="token">Admin token</label>
-    <input id="token" name="token" type="password" autocomplete="current-password" required autofocus />
+    <label for="username">Uživatelské jméno</label>
+    <input id="username" name="username" type="text" autocomplete="username" required autofocus />
+    <label for="password">Heslo</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required />
     <button type="submit" class="btn">Přihlásit</button>
   </form>
 </div>

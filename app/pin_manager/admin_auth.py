@@ -1,29 +1,23 @@
+from __future__ import annotations
+
 import secrets
 
 from fastapi import Request, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-from pin_manager.config import get_settings
+from pin_manager.admin_users import get_or_create_session_secret
 
 COOKIE_NAME = "pin_admin"
 MAX_AGE = 60 * 60 * 12  # 12 h
 
 
 def _serializer() -> URLSafeTimedSerializer:
-    settings = get_settings()
-    secret = settings.session_secret or settings.admin_token or "change-me"
+    secret = get_or_create_session_secret()
     return URLSafeTimedSerializer(secret, salt="pin-manager-admin")
 
 
-def verify_admin_token(token: str) -> bool:
-    expected = get_settings().admin_token
-    if not expected:
-        return False
-    return secrets.compare_digest(token, expected)
-
-
-def set_admin_cookie(response: Response) -> None:
-    payload = _serializer().dumps({"role": "admin"})
+def set_admin_cookie(response: Response, username: str) -> None:
+    payload = _serializer().dumps({"role": "admin", "user": username})
     response.set_cookie(
         COOKIE_NAME,
         payload,
@@ -48,3 +42,11 @@ def is_admin_authenticated(request: Request) -> bool:
     except (BadSignature, SignatureExpired):
         return False
 
+
+def verify_legacy_admin_token(token: str) -> bool:
+    from pin_manager.config import get_settings
+
+    expected = get_settings().admin_token
+    if not expected:
+        return False
+    return secrets.compare_digest(token, expected)

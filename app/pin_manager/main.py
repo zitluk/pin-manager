@@ -17,8 +17,9 @@ from pin_manager.admin_auth import (
     clear_admin_cookie,
     is_admin_authenticated,
     set_admin_cookie,
-    verify_admin_token,
+    verify_legacy_admin_token,
 )
+from pin_manager.admin_users import get_admin_store
 from pin_manager.audit import log_event, read_recent
 from pin_manager.blacklist_ops import add_domain, remove_domain
 from pin_manager.config import get_settings
@@ -94,8 +95,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 def _admin_redirect_if_needed(request: Request) -> RedirectResponse | None:
-    if not get_settings().admin_token:
-        return None
+    admins = get_admin_store()
+    if not admins.has_admin():
+        path = request.url.path
+        if path.startswith("/admin/register"):
+            return None
+        return RedirectResponse("/admin/register", status_code=303)
     if not is_admin_authenticated(request):
         return RedirectResponse("/admin/login", status_code=303)
     return None
@@ -106,18 +111,20 @@ async def health():
     return {"status": "ok"}
 
 
-def _check_admin(authorization: str | None) -> None:
-    token = get_settings().admin_token
-    if not token:
-        raise HTTPException(403, "ADMIN_TOKEN není nastaven")
+def _check_admin(request: Request | None, authorization: str | None) -> None:
+    if request and is_admin_authenticated(request):
+        return
     got = (authorization or "").removeprefix("Bearer ").strip()
-    if not got or not secrets.compare_digest(got, token):
-        raise HTTPException(401, "Neplatný token")
+    if got and get_admin_store().verify_api_token(got):
+        return
+    if got and verify_legacy_admin_token(got):
+        return
+    raise HTTPException(401, "Neplatná autorizace (přihlášení nebo Bearer API token)")
 
 
 @app.get("/admin/blacklist")
-async def admin_list(authorization: str | None = Header(None)):
-    _check_admin(authorization)
+async def admin_list(request: Request, authorization: str | None = Header(None)):
+    _check_admin(request, authorization)
     return {"blacklist": get_store().list_blacklist(), "grants": get_store().active_grants()}
 
 
@@ -126,7 +133,7 @@ async def admin_add(
     request: Request,
     authorization: str | None = Header(None),
 ):
-    _check_admin(authorization)
+    _check_admin(request, authorization)
     body = await request.json()
     domain = body.get("domain", "").strip()
     if not domain:
@@ -138,15 +145,67 @@ async def admin_add(
 
 @app.delete("/admin/blacklist/{domain}")
 async def admin_remove(domain: str, request: Request, authorization: str | None = Header(None)):
-    _check_admin(authorization)
+    _check_admin(request, authorization)
     domain = _normalize_domain(domain)
     bl = await remove_domain(domain)
     log_event("blacklist_remove", request=request, domain=domain)
     return {"ok": True, "blacklist": bl}
 
 
+@app.get("/admin/register")
+async def admin_register_get(request: Request):
+    if get_admin_store().has_admin():
+        return RedirectResponse("/admin/login", status_code=303)
+    if is_admin_authenticated(request):
+        return RedirectResponse("/admin/", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "admin_register.html",
+        {"show_nav": False, "error": None},
+    )
+
+
+@app.post("/admin/register")
+async def admin_register_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    password2: str = Form(...),
+):
+    if get_admin_store().has_admin():
+        return RedirectResponse("/admin/login", status_code=303)
+    if password != password2:
+        return templates.TemplateResponse(
+            request,
+            "admin_register.html",
+            {"show_nav": False, "error": "Hesla se neshodují."},
+            status_code=400,
+        )
+    try:
+        api_token = get_admin_store().register(username, password)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request,
+            "admin_register.html",
+            {"show_nav": False, "error": str(e)},
+            status_code=400,
+        )
+    log_event("admin_register", request=request, detail=username.strip().lower())
+    return templates.TemplateResponse(
+        request,
+        "admin_register_done.html",
+        {
+            "show_nav": False,
+            "username": username.strip().lower(),
+            "api_token": api_token,
+        },
+    )
+
+
 @app.get("/admin/login")
 async def admin_login_get(request: Request):
+    if not get_admin_store().has_admin():
+        return RedirectResponse("/admin/register", status_code=303)
     if is_admin_authenticated(request):
         return RedirectResponse("/admin/", status_code=303)
     return templates.TemplateResponse(
@@ -157,18 +216,23 @@ async def admin_login_get(request: Request):
 
 
 @app.post("/admin/login")
-async def admin_login_post(request: Request, token: str = Form(...)):
-    if not verify_admin_token(token):
-        log_event("admin_login_fail", request=request)
+async def admin_login_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    admins = get_admin_store()
+    if not admins.verify(username, password):
+        log_event("admin_login_fail", request=request, detail=username.strip().lower())
         return templates.TemplateResponse(
             request,
             "admin_login.html",
-            {"show_nav": False, "error": "Neplatný token."},
+            {"show_nav": False, "error": "Neplatné jméno nebo heslo."},
             status_code=401,
         )
-    log_event("admin_login_ok", request=request)
+    log_event("admin_login_ok", request=request, detail=username.strip().lower())
     resp = RedirectResponse("/admin/", status_code=303)
-    set_admin_cookie(resp)
+    set_admin_cookie(resp, username.strip().lower())
     return resp
 
 
@@ -238,8 +302,8 @@ async def admin_logs(request: Request):
 
 
 @app.get("/admin/audit")
-async def admin_audit_api(authorization: str | None = Header(None)):
-    _check_admin(authorization)
+async def admin_audit_api(request: Request, authorization: str | None = Header(None)):
+    _check_admin(request, authorization)
     return {"entries": read_recent()}
 
 

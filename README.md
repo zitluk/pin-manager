@@ -25,7 +25,7 @@ Soubor `dnsmasq-sync/pin-sinkhole.conf` generuje kontejner `pin-manager`.
 ## Administrace (web)
 
 - URL: `http://PORTAL_IP/admin/`
-- Přihlášení hodnotou `ADMIN_TOKEN` (nastavená v Portaineru / `.env`)
+- První návštěva: **registrace administrátora** (jméno + heslo), pak přihlášení
 - Správa blacklistu, dočasná povolení a **protokol** (`/admin/logs`) – kdo (IP), kdy a co
 
 **Před nasazením** spusťte `python3 scripts/configure.py` – zeptá se na **VLAN (macvlan, vlastní IP bez portů)** nebo **IP serveru + port**.
