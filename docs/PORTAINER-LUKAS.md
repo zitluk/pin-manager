@@ -10,12 +10,18 @@
 
 Žádné `ports:` – kontejner má IP **192.168.39.207** na síti **docker_vlan**, HTTP port **80 jen na té IP**.
 
-**Nejde otevřít 192.168.39.207?**
+**`ERR_ADDRESS_UNREACHABLE` u 192.168.39.207?**
 
-1. Ověř v Portaineru, že kontejner **pin-manager** je **running** (ne Restarting).
-2. Zkus **`http://192.168.39.207/health`** – má vrátit `{"status":"ok"}`.
-3. **Nepoužívej prohlížeč na stejném RPi** jako Docker – macvlan IP často z hostitele nefunguje; zkus telefon/PC v síti.
-4. Po redeploy běží sync na Pi-hole **na pozadí** – stránka by měla jít hned, ne až po minutě.
+IP v síti **vůbec neexistuje** (ne chyba aplikace). Podrobný postup: **[SIT-NEJDE-207.md](./SIT-NEJDE-207.md)**.
+
+Zkráceně:
+
+1. PC/telefon musí být ve **stejné síti 192.168.39.x** (ne jiná podsíť).
+2. Portainer: kontejner **pin-manager** = **running**.
+3. Na RPi: síť **`docker_vlan`** (macvlan) – skript `scripts/create-docker-vlan.sh`.
+4. Mikrotik: **.207** nevydávat jinému zařízení přes DHCP.
+5. Test z PC: `ping 192.168.39.207`, pak `http://192.168.39.207/health`.
+6. Z **prohlížeče na RPi** macvlan často nejde – testujte z jiného zařízení.
 
 ## Env ve stacku (vyplňte tajné údaje)
 
