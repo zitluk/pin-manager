@@ -9,7 +9,13 @@ from urllib.parse import urlencode, urlsplit
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Form, Header, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -538,6 +544,78 @@ async def admin_ui_remove(request: Request, domain: str = Form(...)):
         logger.exception("remove_domain")
         return _admin_redirect("/admin/", error=str(e))
     return _admin_redirect("/admin/", message="Doména odebrána")
+
+
+@app.get("/setup")
+async def device_setup(request: Request):
+    """Návod + živá kontrola zařízení (DNS přes Pi-hole, důvěra v domácí CA)."""
+    from pin_manager.domain_expand import HSTS_SIMPLE_BLOCK_APEX
+    from pin_manager.tls_certs import CA_NAME
+
+    blocked = get_store().blocked_domains_for_sinkhole()
+    # Přednostně doména bez HSTS – u ní jde DNS ověřit i bez certifikátu
+    test_domain = next((d for d in blocked if d not in HSTS_SIMPLE_BLOCK_APEX), None) or (
+        blocked[0] if blocked else None
+    )
+    return templates.TemplateResponse(
+        request, "setup.html", {"test_domain": test_domain, "ca_name": CA_NAME}
+    )
+
+
+@app.get("/ca.mobileconfig")
+async def download_apple_profile():
+    """Konfigurační profil pro iPhone/iPad/Mac – nainstaluje domácí CA."""
+    import hashlib
+    import plistlib
+    import uuid
+
+    from pin_manager.tls_certs import CA_NAME, ca_der
+
+    der = ca_der()
+    fp = hashlib.sha256(der).hexdigest()
+    ns = uuid.UUID("6f1c2f9e-7a1e-4d55-9f0b-5e2a3c1d9b01")
+    profile = {
+        "PayloadContent": [
+            {
+                "PayloadCertificateFileName": "pin-manager-ca.cer",
+                "PayloadContent": der,
+                "PayloadDescription": "Domácí certifikát PIN manažeru",
+                "PayloadDisplayName": CA_NAME,
+                "PayloadIdentifier": f"local.pin-manager.ca.{fp[:16]}",
+                "PayloadType": "com.apple.security.root",
+                "PayloadUUID": str(uuid.uuid5(ns, "cert-" + fp)).upper(),
+                "PayloadVersion": 1,
+            }
+        ],
+        "PayloadDescription": "Umožní zobrazit formulář s PINem i u HTTPS stránek.",
+        "PayloadDisplayName": "PIN manažer – domácí certifikát",
+        "PayloadIdentifier": "local.pin-manager.profile",
+        "PayloadRemovalDisallowed": False,
+        "PayloadType": "Configuration",
+        "PayloadUUID": str(uuid.uuid5(ns, "profile-" + fp)).upper(),
+        "PayloadVersion": 1,
+    }
+    return Response(
+        content=plistlib.dumps(profile),
+        media_type="application/x-apple-aspen-config",
+        headers={"Content-Disposition": 'attachment; filename="pin-manager.mobileconfig"'},
+    )
+
+
+@app.get("/__pin/check")
+async def pin_check(request: Request):
+    """Kontrola ze stránky /setup: odpověď znamená, že DNS jména vede na portál
+    (a u https:// že zařízení důvěřuje certifikátu)."""
+    host = _host_from_request(request)
+    return JSONResponse(
+        {
+            "portal": True,
+            "host": host,
+            "blocked": get_store().is_blocked(host) if host else False,
+            "scheme": request.url.scheme,
+        },
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"},
+    )
 
 
 @app.get("/preview/block")

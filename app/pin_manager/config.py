@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     portal_https: bool = True  # env: PORTAL_HTTPS – TLS :443 s domácí CA
     # Další domény k tichému bloku (čárkou), jen když SINKHOLE_HTTPS_SILENT=true
     sinkhole_silent_domains: str = ""  # env: SINKHOLE_SILENT_DOMAINS
+    # NXDOMAIN pro iCloud Private Relay a Firefox DoH canary – jinak zařízení obchází Pi-hole
+    block_dns_bypass: bool = True  # env: BLOCK_DNS_BYPASS
     admin_token: str = ""
     session_secret: str = ""
     portal_ip: str = ""

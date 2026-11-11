@@ -19,6 +19,61 @@ AAAA_DENY_COMMENT = "pin-manager-aaaa"
 SILENT_DENY_COMMENT = "pin-manager-silent"
 
 
+# Typy dotazů, které u blokované domény musí vrátit NODATA:
+#  AAAA  – jinak prohlížeč jede přes IPv6 na skutečný server
+#  HTTPS/SVCB (TYPE65/64) – obsahují ipv4hint/ipv6hint se skutečnými IP; Safari je
+#        používá a portál úplně obejde (takhle se otevíralo centrum.cz bez PINu)
+NODATA_QTYPES: tuple[str, ...] = ("AAAA", "HTTPS", "SVCB")
+
+# Obchvaty DNS: iCloud Private Relay a automatické DoH ve Firefoxu.
+# Apple i Mozilla doporučují síťům vrátit NXDOMAIN – zařízení pak použije místní DNS.
+ANTI_BYPASS_REGEX: tuple[str, ...] = (
+    r"^mask(-h2)?\.icloud\.com$;reply=nxdomain",
+    r"^use-application-dns\.net$;reply=nxdomain",
+)
+
+
+def qtype_nodata_regex(apex: str, qtype: str) -> str:
+    d = _normalize_domain(apex)
+    if not d:
+        raise ValueError("prázdná doména pro regex")
+    return f"(\\.|^){re.escape(d)}$;querytype={qtype};reply=nodata"
+
+
+def desired_pin_regex_rules(apex_domains: list[str], *, anti_bypass: bool) -> set[str]:
+    rules = {
+        qtype_nodata_regex(d, qt)
+        for d in {_normalize_domain(x) for x in apex_domains}
+        if d
+        for qt in NODATA_QTYPES
+    }
+    if anti_bypass:
+        rules |= set(ANTI_BYPASS_REGEX)
+    return rules
+
+
+def _is_pin_address_line(line: str, portal_ip: str) -> bool:
+    return (
+        isinstance(line, str)
+        and line.startswith("address=/")
+        and line.rstrip().endswith(f"/{portal_ip}")
+    )
+
+
+def merge_dnsmasq_lines(existing: list[str], portal_ip: str, apex_domains: list[str]) -> list[str]:
+    """Ponechá cizí řádky, nahradí naše address=/<doména>/<PORTAL_IP>.
+
+    address=/youtube.com/IP platí i pro všechny poddomény (m.youtube.com,
+    rr1---sn-….googlevideo.com) – Local DNS záznamy (dns.hosts) uměly jen přesná jména.
+    """
+    keep = [ln for ln in existing if not _is_pin_address_line(ln, portal_ip)]
+    ours = [
+        f"address=/{d}/{portal_ip}"
+        for d in sorted({_normalize_domain(x) for x in apex_domains} - {""})
+    ]
+    return keep + ours
+
+
 def aaaa_nodata_regex(apex: str) -> str:
     """Pi-hole regex + extension: jen AAAA → NODATA (viz docs.pi-hole.net/regex/pi-hole)."""
     d = _normalize_domain(apex)
@@ -234,18 +289,48 @@ class PiHoleClient:
         return out
 
     async def sync_pin_aaaa_nodata(self, apex_domains: list[str]) -> int:
-        """Lokální A záznam neblokuje AAAA – regex jen pro IPv6 (bez úprav Pi-hole compose)."""
-        desired = {
-            aaaa_nodata_regex(d)
-            for d in (_normalize_domain(x) for x in apex_domains)
-            if d
-        }
+        """Regex pravidla: NODATA pro AAAA/HTTPS/SVCB u blokovaných domén + anti-obchvat.
+
+        Mění jen rozdíl proti stavu v Pi-hole (dřív vše mazalo a znovu přidávalo)."""
+        desired = desired_pin_regex_rules(
+            apex_domains, anti_bypass=self.settings.block_dns_bypass
+        )
         existing = await self._list_pin_aaaa_regex_rules()
-        for rule in sorted(existing):
+        for rule in sorted(existing - desired):
             await self.remove_deny_regex(rule)
-        for rule in sorted(desired):
+        for rule in sorted(desired - existing):
             await self.add_deny_regex(rule)
         return len(desired)
+
+    async def get_dnsmasq_lines(self) -> list[str]:
+        r = await self._http().get(
+            f"{self.base}/api/config/misc/dnsmasq_lines",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        data = r.json()
+        cfg = data.get("config", data) if isinstance(data, dict) else {}
+        lines = (cfg.get("misc") or {}).get("dnsmasq_lines") if isinstance(cfg, dict) else None
+        if not isinstance(lines, list):
+            raise RuntimeError("Pi-hole: neočekávaná odpověď misc.dnsmasq_lines")
+        return [ln for ln in lines if isinstance(ln, str)]
+
+    async def sync_pin_dnsmasq_lines(self, portal_ip: str, apex_domains: list[str]) -> bool:
+        """Zapíše address=/doména/PORTAL_IP do misc.dnsmasq_lines. Vrací True při změně."""
+        existing = await self.get_dnsmasq_lines()
+        desired = merge_dnsmasq_lines(existing, portal_ip, apex_domains)
+        if desired == existing:
+            return False
+        r = await self._http().patch(
+            f"{self.base}/api/config",
+            headers=self._headers(),
+            json={"config": {"misc": {"dnsmasq_lines": desired}}},
+            timeout=60.0,
+        )
+        if r.status_code >= 400:
+            raise RuntimeError(f"Pi-hole dnsmasq_lines ({r.status_code}): {r.text[:300]}")
+        return True
 
     async def grant_allow(self, domain: str, comment: str) -> None:
         await self._http().post(
