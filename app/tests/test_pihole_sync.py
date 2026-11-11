@@ -61,3 +61,11 @@ async def test_sync_pin_dns_hosts_put_and_delete():
     joined = " ".join(u for _, u in calls)
     assert "old.example" in joined or any(m == "PUT" for m, _ in calls)
     assert "new.example" in joined
+
+
+def test_aaaa_nodata_regex_escaped():
+    from pin_manager.pihole import aaaa_nodata_regex
+
+    assert aaaa_nodata_regex("youtube.com") == (
+        "^youtube\\.com$;querytype=AAAA;reply=nodata"
+    )

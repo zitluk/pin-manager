@@ -23,6 +23,7 @@ async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
 async def _sync_pihole_api(ph: PiHoleClient, portal_ip: str, domains: list[str]) -> int:
     await _clear_gravity_denies(ph, domains)
     await ph.sync_pin_dns_hosts(portal_ip, domains)
+    await ph.sync_pin_aaaa_nodata(domains)
     await ph.restart_dns()
     return len(domains)
 

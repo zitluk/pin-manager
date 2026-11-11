@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 from types import TracebackType
 from urllib.parse import quote
@@ -13,6 +14,12 @@ from pin_manager.config import get_settings
 logger = logging.getLogger(__name__)
 
 _API_LOCK = asyncio.Lock()
+AAAA_DENY_COMMENT = "pin-manager-aaaa"
+
+
+def aaaa_nodata_regex(domain: str) -> str:
+    d = domain.strip().lower().rstrip(".")
+    return f"^{re.escape(d)}$;querytype=AAAA;reply=nodata"
 
 
 @asynccontextmanager
@@ -104,6 +111,60 @@ class PiHoleClient:
             headers=self._headers(),
             timeout=30.0,
         )
+
+    async def add_deny_regex(self, rule: str, comment: str = AAAA_DENY_COMMENT) -> None:
+        r = await self._http().post(
+            f"{self.base}/api/domains/deny/regex",
+            headers=self._headers(),
+            json={"domain": rule, "comment": comment},
+            timeout=30.0,
+        )
+        if r.status_code >= 400:
+            logger.warning("POST deny regex %s → %s: %s", rule, r.status_code, r.text[:200])
+
+    async def remove_deny_regex(self, rule: str) -> None:
+        enc = quote(rule, safe="")
+        r = await self._http().delete(
+            f"{self.base}/api/domains/deny/regex/{enc}",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        if r.status_code >= 400:
+            logger.debug("DELETE deny regex %s → %s", rule, r.status_code)
+
+    async def _list_pin_aaaa_regex_rules(self) -> set[str]:
+        out: set[str] = set()
+        try:
+            r = await self._http().get(
+                f"{self.base}/api/domains/deny/regex",
+                headers=self._headers(),
+                timeout=30.0,
+            )
+            r.raise_for_status()
+            data = r.json()
+            items = data.get("domains", [])
+            if not isinstance(items, list):
+                return out
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("comment") != AAAA_DENY_COMMENT:
+                    continue
+                rule = item.get("domain")
+                if isinstance(rule, str) and rule:
+                    out.add(rule)
+        except Exception as e:
+            logger.warning("Načtení regex deny z Pi-hole: %s", e)
+        return out
+
+    async def sync_pin_aaaa_nodata(self, domains: list[str]) -> None:
+        """Lokální A záznam neblokuje AAAA – přidáme regex jen pro IPv6 (bez úprav Pi-hole compose)."""
+        desired = {aaaa_nodata_regex(d) for d in set(domains)}
+        existing = await self._list_pin_aaaa_regex_rules()
+        for rule in sorted(existing - desired):
+            await self.remove_deny_regex(rule)
+        for rule in sorted(desired - existing):
+            await self.add_deny_regex(rule)
 
     async def grant_allow(self, domain: str, comment: str) -> None:
         await self._http().post(
