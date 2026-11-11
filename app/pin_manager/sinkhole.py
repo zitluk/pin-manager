@@ -20,17 +20,23 @@ async def _clear_gravity_denies(ph: PiHoleClient, domains: list[str]) -> None:
                 pass
 
 
-async def _sync_pihole_api(ph: PiHoleClient, portal_ip: str, domains: list[str]) -> int:
+async def _sync_pihole_api(
+    ph: PiHoleClient,
+    portal_ip: str,
+    domains: list[str],
+    apex_domains: list[str],
+) -> int:
     await _clear_gravity_denies(ph, domains)
     await ph.sync_pin_dns_hosts(portal_ip, domains)
-    await ph.sync_pin_aaaa_nodata(domains)
+    aaaa_rules = await ph.sync_pin_aaaa_nodata(apex_domains)
     await ph.restart_dns()
-    return len(domains)
+    return len(domains) + aaaa_rules
 
 
 async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) -> None:
     store = get_store()
-    domains = expand_sinkhole_domains(store.blocked_domains_for_sinkhole())
+    apex_domains = store.blocked_domains_for_sinkhole()
+    domains = expand_sinkhole_domains(apex_domains)
     settings = get_settings()
     mode = (settings.pihole_sinkhole_mode or "both").lower()
 
@@ -43,10 +49,12 @@ async def publish_sinkhole(portal_ip: str, *, ph: PiHoleClient | None = None) ->
     if mode in ("api", "both"):
         try:
             if ph is not None:
-                hosts_written = await _sync_pihole_api(ph, portal_ip, domains)
+                hosts_written = await _sync_pihole_api(ph, portal_ip, domains, apex_domains)
             else:
                 async with pihole_api() as client:
-                    hosts_written = await _sync_pihole_api(client, portal_ip, domains)
+                    hosts_written = await _sync_pihole_api(
+                        client, portal_ip, domains, apex_domains
+                    )
             api_ok = True
         except Exception as e:
             api_err = str(e)

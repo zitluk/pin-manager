@@ -67,5 +67,5 @@ def test_aaaa_nodata_regex_escaped():
     from pin_manager.pihole import aaaa_nodata_regex
 
     assert aaaa_nodata_regex("youtube.com") == (
-        "^youtube\\.com$;querytype=AAAA;reply=nodata"
+        "(\\.|^)youtube\\.com$;querytype=AAAA;reply=nodata"
     )
