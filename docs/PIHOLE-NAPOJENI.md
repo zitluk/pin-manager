@@ -25,8 +25,9 @@ Ve stacku **pin-manager** nastavte jen tyto proměnné:
 
 Volitelně (výchozí je už správně):
 
-- `PIHOLE_SINKHOLE_MODE=api` – jen API (doporučeno)
-- `PIHOLE_SINKHOLE_MODE=file` – starý režim se sdíleným souborem (viz `AKTIVACE-BLOKOVANI.md`)
+- `PIHOLE_SINKHOLE_MODE=both` – API + záloha souboru (výchozí, nejodolnější)
+- `PIHOLE_SINKHOLE_MODE=api` – jen API (bez mountu Pi-hole)
+- `PIHOLE_SINKHOLE_MODE=file` – jen soubor (viz `AKTIVACE-BLOKOVANI.md`)
 
 **Pi-hole stack neměňte** – žádný mount, žádný extra config.
 
