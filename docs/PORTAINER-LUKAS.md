@@ -44,6 +44,10 @@ V Pi-hole stacku volume:
 FTLCONF_misc_etc_dnsmasq_d: "true"
 ```
 
+## Automatický redeploy po `git push`
+
+Nastavení webhooku + GitHub secret: **[AUTO-DEPLOY.md](AUTO-DEPLOY.md)**.
+
 ## Po deployi
 
 - Admin: **http://192.168.39.207/admin/**

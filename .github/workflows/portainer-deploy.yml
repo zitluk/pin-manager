@@ -1,0 +1,23 @@
+# Po pushi na main zavolá Portainer webhook a stack se sám přebuildí / redeploy.
+# GitHub → Settings → Secrets → PORTAINER_STACK_WEBHOOK (URL z Portaineru u stacku)
+
+name: Portainer auto deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Portainer stack webhook
+        run: |
+          if [ -z "${{ secrets.PORTAINER_STACK_WEBHOOK }}" ]; then
+            echo "PORTAINER_STACK_WEBHOOK není nastaven – přeskočeno (nastavte secret v GitHub repo)."
+            exit 0
+          fi
+          curl -fsS -X POST "${{ secrets.PORTAINER_STACK_WEBHOOK }}"
+          echo "Portainer redeploy webhook odeslán."

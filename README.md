@@ -31,7 +31,7 @@ Soubor `dnsmasq-sync/pin-sinkhole.conf` generuje kontejner `pin-manager`.
 **Před nasazením** spusťte `python3 scripts/configure.py` – zeptá se na **VLAN (macvlan, vlastní IP bez portů)** nebo **IP serveru + port**.
 
 Nasazení přes GitHub a Portainer: viz [docs/PORTAINER-GITHUB.md](docs/PORTAINER-GITHUB.md).  
-**Lukas (produkce):** VLAN `docker_vlan`, IP **`192.168.39.207`** → Portainer compose path **`portainer-stack.yml`** (bez host portů). Viz [docs/PORTAINER-LUKAS.md](docs/PORTAINER-LUKAS.md).
+**Lukas (produkce):** VLAN `docker_vlan`, IP **`192.168.39.207`** → Portainer compose path **`portainer-stack.yml`**. Auto deploy po push: [docs/AUTO-DEPLOY.md](docs/AUTO-DEPLOY.md). Viz [docs/PORTAINER-LUKAS.md](docs/PORTAINER-LUKAS.md).
 
 ## Rychlý start
 
