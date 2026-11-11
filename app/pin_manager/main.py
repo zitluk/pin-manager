@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 import time
@@ -48,16 +49,21 @@ def _host_from_request(request: Request) -> str:
     return _normalize_domain(host.split(":")[0])
 
 
+async def _startup_pihole_sync(portal_ip: str) -> None:
+    try:
+        await publish_sinkhole(portal_ip)
+        logger.info("Po startu dokončena synchronizace Pi-hole DNS")
+    except Exception as e:
+        logger.warning("Po startu se nepodařilo synchronizovat Pi-hole DNS: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    store = get_store()
     portal_ip = settings.portal_ip
+    startup_sync_task: asyncio.Task | None = None
     if portal_ip:
-        try:
-            await publish_sinkhole(portal_ip)
-        except Exception as e:
-            logger.warning("Po startu se nepodařilo synchronizovat Pi-hole DNS: %s", e)
+        startup_sync_task = asyncio.create_task(_startup_pihole_sync(portal_ip))
 
     scheduler = AsyncIOScheduler()
 
@@ -81,6 +87,8 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(expire_grants, "interval", seconds=30, id="expire_grants")
     scheduler.start()
     yield
+    if startup_sync_task and not startup_sync_task.done():
+        startup_sync_task.cancel()
     scheduler.shutdown(wait=False)
 
 

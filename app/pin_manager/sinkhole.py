@@ -19,13 +19,13 @@ async def publish_sinkhole(portal_ip: str) -> None:
     file_ok = False
     api_err: Exception | None = None
     file_err: Exception | None = None
+    need_dns_restart = False
 
     if mode in ("api", "both"):
         try:
-            ph = PiHoleClient()
-            await ph.sync_pin_dns_hosts(portal_ip, domains)
-            await ph.restart_dns()
+            await PiHoleClient().sync_pin_dns_hosts(portal_ip, domains)
             api_ok = True
+            need_dns_restart = True
         except Exception as e:
             api_err = e
             logger.exception("Pi-hole API dns.hosts sync")
@@ -37,11 +37,17 @@ async def publish_sinkhole(portal_ip: str) -> None:
                 domains,
                 Path(settings.dnsmasq_sinkhole_path),
             )
-            await PiHoleClient().restart_dns()
             file_ok = True
+            need_dns_restart = True
         except Exception as e:
             file_err = e
             logger.exception("dnsmasq sinkhole file sync")
+
+    if need_dns_restart:
+        try:
+            await PiHoleClient().restart_dns()
+        except Exception as e:
+            logger.warning("restart_dns po sinkhole sync: %s", e)
 
     if mode == "api" and not api_ok:
         raise RuntimeError(f"Pi-hole API: {api_err}") from api_err

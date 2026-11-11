@@ -10,6 +10,13 @@
 
 Žádné `ports:` – kontejner má IP **192.168.39.207** na síti **docker_vlan**, HTTP port **80 jen na té IP**.
 
+**Nejde otevřít 192.168.39.207?**
+
+1. Ověř v Portaineru, že kontejner **pin-manager** je **running** (ne Restarting).
+2. Zkus **`http://192.168.39.207/health`** – má vrátit `{"status":"ok"}`.
+3. **Nepoužívej prohlížeč na stejném RPi** jako Docker – macvlan IP často z hostitele nefunguje; zkus telefon/PC v síti.
+4. Po redeploy běží sync na Pi-hole **na pozadí** – stránka by měla jít hned, ne až po minutě.
+
 ## Env ve stacku (vyplňte tajné údaje)
 
 ```
