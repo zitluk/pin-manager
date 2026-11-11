@@ -33,3 +33,31 @@ async def apply_relock(domain: str, portal_ip: str) -> None:
         except Exception as e:
             logger.info("remove allow: %s", e)
         await publish_sinkhole(portal_ip, ph=ph)
+
+
+async def relock_expired(portal_ip: str) -> list[str]:
+    """Vrátí blokování pro všechna prošlá povolení (volá plánovač).
+
+    Prošlá povolení se atomicky vyjmou z úložiště (jen jeden proces je dostane).
+    Když Pi-hole selže, vrátí se zpět, aby je další běh zkusil znovu – jinak by
+    doména zůstala odblokovaná natrvalo.
+    """
+    store = get_store()
+    expired = store.pop_expired_grants()
+    if not expired:
+        return []
+    try:
+        async with pihole_api() as ph:
+            for domain in expired:
+                try:
+                    await ph.remove_allow(domain)
+                except Exception as e:
+                    logger.info("remove allow %s: %s", domain, e)
+            await publish_sinkhole(portal_ip, ph=ph)
+    except Exception:
+        for domain, ts in expired.items():
+            # Mezitím mohlo vzniknout nové povolení (nový PIN) – to nepřepisujeme
+            if store.active_grant_until(domain) is None:
+                store.set_grant(domain, ts)
+        raise
+    return sorted(expired)

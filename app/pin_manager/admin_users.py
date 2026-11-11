@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import secrets
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +8,7 @@ from typing import Any
 import bcrypt
 
 from pin_manager.config import get_settings
+from pin_manager.fileutil import file_lock, json_snapshot, json_transaction
 
 MIN_PASSWORD_LEN = 8
 
@@ -19,28 +18,15 @@ class AdminAccountStore:
 
     def __init__(self, path: Path) -> None:
         self._path = path
-        self._lock = threading.Lock()
-        self._load()
 
-    def _load(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        if self._path.exists():
-            with open(self._path, encoding="utf-8") as f:
-                self._data: dict[str, Any] = json.load(f)
-        else:
-            self._data = {}
-
-    def _save(self) -> None:
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(self._data, f, indent=2, ensure_ascii=False)
+    def _read(self) -> dict[str, Any]:
+        return json_snapshot(self._path, dict)
 
     def has_admin(self) -> bool:
-        with self._lock:
-            return bool(self._data.get("password_hash"))
+        return bool(self._read().get("password_hash"))
 
     def username(self) -> str | None:
-        with self._lock:
-            return self._data.get("username")
+        return self._read().get("username")
 
     def register(self, username: str, password: str) -> str:
         username = username.strip().lower()
@@ -48,44 +34,42 @@ class AdminAccountStore:
             raise ValueError("Zadejte uživatelské jméno.")
         if len(password) < MIN_PASSWORD_LEN:
             raise ValueError(f"Heslo musí mít alespoň {MIN_PASSWORD_LEN} znaků.")
-        with self._lock:
-            if self._data.get("password_hash"):
+        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        api_token = secrets.token_urlsafe(32)
+        with json_transaction(self._path, dict) as data:
+            if data.get("password_hash"):
                 raise ValueError("Administrator je již zaregistrován.")
-            api_token = secrets.token_urlsafe(32)
-            self._data = {
-                "username": username,
-                "password_hash": bcrypt.hashpw(
-                    password.encode("utf-8"),
-                    bcrypt.gensalt(),
-                ).decode("utf-8"),
-                "api_token": api_token,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            self._save()
-            return api_token
+            data.clear()
+            data.update(
+                {
+                    "username": username,
+                    "password_hash": password_hash,
+                    "api_token": api_token,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        return api_token
 
     def verify(self, username: str, password: str) -> bool:
         username = username.strip().lower()
-        with self._lock:
-            if not self._data.get("password_hash"):
-                return False
-            if self._data.get("username") != username:
-                return False
-            return bcrypt.checkpw(
-                password.encode("utf-8"),
-                self._data["password_hash"].encode("utf-8"),
-            )
+        data = self._read()
+        if not data.get("password_hash"):
+            return False
+        if data.get("username") != username:
+            return False
+        return bcrypt.checkpw(
+            password.encode("utf-8"),
+            data["password_hash"].encode("utf-8"),
+        )
 
     def verify_api_token(self, token: str) -> bool:
-        with self._lock:
-            stored = self._data.get("api_token") or ""
-            if not stored or not token:
-                return False
-            return secrets.compare_digest(token, stored)
+        stored = self._read().get("api_token") or ""
+        if not stored or not token:
+            return False
+        return secrets.compare_digest(token, stored)
 
     def api_token(self) -> str | None:
-        with self._lock:
-            return self._data.get("api_token")
+        return self._read().get("api_token")
 
 
 def get_session_secret_path() -> Path:
@@ -97,12 +81,15 @@ def get_or_create_session_secret() -> str:
     if settings.session_secret:
         return settings.session_secret
     path = get_session_secret_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        return path.read_text(encoding="utf-8").strip()
-    secret = secrets.token_urlsafe(48)
-    path.write_text(secret, encoding="utf-8")
-    return secret
+    # Pod zámkem: HTTP i HTTPS proces musí sdílet stejný secret (jinak neplatné cookies)
+    with file_lock(path):
+        if path.exists():
+            existing = path.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+        secret = secrets.token_urlsafe(48)
+        path.write_text(secret, encoding="utf-8")
+        return secret
 
 
 def get_admin_store() -> AdminAccountStore:
