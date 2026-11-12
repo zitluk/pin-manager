@@ -47,3 +47,4 @@ input[type=text], input[type=password], select {
 .flash.ok { background: var(--ok-bg); color: var(--ok); }
 .flash.err { background: var(--err-bg); color: var(--err); }
 code { word-break: break-all; }
+.status { text-align: center; font-size: .9rem; margin: 1rem 0 0; }

@@ -117,6 +117,7 @@ async def home(request: Request, message: str = "", error: str = "", opened: str
             "aliases": store.aliases(),
             "grants": sorted(grants.items()),
             "opened": opened if opened in grants else "",
+            "sync": sync_state,
             "durations": get_settings().duration_minutes_list,
             "message": message,
             "error": error,

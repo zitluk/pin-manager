@@ -1,0 +1,3 @@
+{% if sync.ok %}<span class="tag ok">v pořádku</span> <span class="muted">synchronizováno {{ sync.at|time }}</span>
+{%- elif sync.ok is none %}<span class="muted">zatím nesynchronizováno</span>
+{%- else %}<span class="tag err">chyba</span> {{ sync.error }}{% endif %}

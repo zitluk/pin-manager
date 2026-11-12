@@ -38,11 +38,7 @@
 
 <section class="card">
   <h2>Pi-hole</h2>
-  <p><code>{{ pihole_url }}</code> –
-    {% if sync.ok %}<span class="tag ok">v pořádku</span> {{ sync.at|time }}
-    {% elif sync.ok is none %}<span class="muted">zatím nesynchronizováno</span>
-    {% else %}<span class="tag err">chyba</span> {{ sync.error }}{% endif %}
-  </p>
+  <p><code>{{ pihole_url }}</code> – {% include "sync_status.html" %}</p>
   <form method="post" action="/admin/sync"><button type="submit" class="btn secondary">Synchronizovat teď</button></form>
 </section>
 {% endblock %}

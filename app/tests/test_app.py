@@ -212,3 +212,14 @@ def test_old_separate_entries_folded(client, tmp_path):
     assert "googlevideo.com" in store.aliases()["youtube.com"]
     assert store.active_grants() == {}
     assert "googlevideo.com" in store.blocked_hosts()
+
+
+def test_home_shows_pihole_status(client, pihole):
+    assert "zatím nesynchronizováno" in client.get("/").text
+    client.post("/admin/login", data={"pin": "4242"})
+    client.post("/admin/sync")
+    assert "v pořádku" in client.get("/").text
+    pihole.fail = True
+    client.post("/admin/sync")
+    html = client.get("/").text
+    assert "chyba" in html and "Pi-hole vrátil chybu 500" in html

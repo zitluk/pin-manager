@@ -108,6 +108,7 @@ def client(tmp_path, monkeypatch, pihole):
     monkeypatch.setattr(ph, "_legacy_cleaned", False)
     monkeypatch.setattr(ph, "_sid", "")
     monkeypatch.setattr(main, "lockout", main.Lockout())
+    monkeypatch.setattr(main, "sync_state", {"ok": None, "error": "", "at": 0.0})
     from fastapi.testclient import TestClient
 
     # Bez `with` neběží lifespan (synchronizační smyčka) – testy volají sync přes endpointy
