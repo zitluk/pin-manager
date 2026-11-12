@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -95,6 +95,11 @@ def _is_admin(request: Request) -> bool:
 def _pin_ok(pin: str) -> bool:
     expected = get_settings().pin
     return bool(expected) and secrets.compare_digest(pin.encode(), expected.encode())
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse(BASE / "static" / "favicon-32.png", media_type="image/png")
 
 
 @app.get("/health")

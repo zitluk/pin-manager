@@ -13,7 +13,7 @@ input, select, button { font: inherit; }
 body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1rem; max-width: 520px; margin: 0 auto; }
 .topbar a { color: var(--accent); text-decoration: none; }
-.brand { font-weight: 700; color: var(--text) !important; }
+.brand { font-weight: 700; color: var(--text) !important; display: inline-flex; align-items: center; gap: .5rem; }
 main { max-width: 520px; margin: 0 auto; padding: 0 1rem 2rem; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; }
 h1 { font-size: 1.3rem; margin: 0 0 1rem; }

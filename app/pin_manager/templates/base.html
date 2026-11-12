@@ -5,10 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}Internet access{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <meta name="theme-color" content="#1e3a8a" />
+  <meta name="apple-mobile-web-app-title" content="Internet" />
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">Internet access</a>
+    <a class="brand" href="/"><img src="/static/icon.svg" alt="" width="28" height="28" />Internet access</a>
     {% block nav %}<a href="/admin">Správa</a>{% endblock %}
   </header>
   <main>

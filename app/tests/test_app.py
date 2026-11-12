@@ -223,3 +223,10 @@ def test_home_shows_pihole_status(client, pihole):
     client.post("/admin/sync")
     html = client.get("/").text
     assert "chyba" in html and "Pi-hole vrátil chybu 500" in html
+
+
+def test_icons_served(client):
+    assert client.get("/favicon.ico").headers["content-type"] == "image/png"
+    for path in ("icon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "manifest.webmanifest"):
+        assert client.get(f"/static/{path}").status_code == 200
+    assert 'rel="apple-touch-icon"' in client.get("/").text
