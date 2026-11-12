@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Správa – PIN manažer{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Správa</h1>
+  {% if configured %}
+  <form method="post" action="/admin/login">
+    <label for="pin">PIN</label>
+    <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus />
+    <button type="submit" class="btn">Přihlásit</button>
+  </form>
+  {% else %}
+  <p class="muted">Správa je vypnutá – nastavte proměnnou <code>PIN</code> a restartujte kontejner.</p>
+  {% endif %}
+</section>
+{% endblock %}

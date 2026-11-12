@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}PIN manažer{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">PIN manažer</a>
+    {% block nav %}<a href="/admin">Správa</a>{% endblock %}
+  </header>
+  <main>
+    {% if message %}<div class="flash ok" role="status">{{ message }}</div>{% endif %}
+    {% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

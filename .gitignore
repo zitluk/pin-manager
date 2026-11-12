@@ -1,9 +1,6 @@
 .env
-stack.env
 *.pyc
 __pycache__/
 .venv/
+.pytest_cache/
 data/
-dnsmasq-sync/pin-sinkhole.conf
-app/tests/_data/
-app/tests/_sync/
