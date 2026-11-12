@@ -1,4 +1,4 @@
-# PIN manažer pro Pi-hole
+# Internet access (pin-manager pro Pi-hole)
 
 Jednoduchá webová stránka: vybrané domény jsou v Pi-hole blokované a kdo zná **PIN**,
 může je na chvíli povolit.
@@ -48,8 +48,10 @@ To už neplatí:
 
 - Při prvním spuštění pin-manager sám smaže svá stará pravidla v Pi-hole
   (regexy, `allow` povolení, tichý blok). Seznam domén v `state.json` zůstává.
-- Záznamy v *Local DNS* (`192.168.39.207 doména`) a sdílený soubor `pin-sinkhole.conf`
-  v Pi-hole, pokud je máte, smažte ručně.
+- Záznamy v *Local DNS*, které vedou na IP kontejneru nebo na spravované domény
+  (`192.168.39.207 doména`), maže pin-manager při každé synchronizaci sám. Jinak by povolená
+  stránka dál mířila na portál („odmítl připojení“).
+- Sdílený soubor `pin-sinkhole.conf` v Pi-hole (pokud ho Pi-hole načítá) smažte ručně.
 - Proměnné `PORTAL_IP`, `SESSION_SECRET`, `SINKHOLE_*`, `PORTAL_*`, `ADMIN_TOKEN` a mount `/sync`
   se už nepoužívají. Do správy se přihlašuje PINem (registrace zmizela).
 - Domácí CA nainstalovaná na zařízeních už není potřeba a můžete ji odinstalovat.

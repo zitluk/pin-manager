@@ -26,6 +26,8 @@ input[type=text], input[type=password], select {
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
 .chip { display: inline-flex; align-items: center; gap: .35rem; font-weight: 500; margin: 0; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
 .btn { width: 100%; padding: .75rem 1rem; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+.btn.open { display: block; text-align: center; text-decoration: none; margin-bottom: 1rem; background: #16a34a; }
+.list a { color: var(--accent); text-decoration: none; font-weight: 600; }
 .btn.secondary { width: auto; background: var(--line); color: var(--text); }
 .row { display: flex; gap: .5rem; }
 .row input { margin: 0; }

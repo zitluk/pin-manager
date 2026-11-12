@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+{% if opened %}
+<a class="btn open" href="https://{{ opened }}/" target="_blank" rel="noopener">Otevřít {{ opened }} ↗</a>
+{% endif %}
 <section class="card">
   <h1>Povolit stránku</h1>
   {% if blocked %}
@@ -30,7 +33,9 @@
 <section class="card">
   <h2>Právě povoleno</h2>
   <ul class="list">
-    {% for d, ts in grants %}<li><span>{{ d }}</span><span class="muted">do {{ ts|time }}</span></li>{% endfor %}
+    {% for d, ts in grants %}
+    <li><a href="https://{{ d }}/" target="_blank" rel="noopener">{{ d }} ↗</a><span class="muted">do {{ ts|time }}</span></li>
+    {% endfor %}
   </ul>
 </section>
 {% endif %}

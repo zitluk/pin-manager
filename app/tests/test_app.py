@@ -141,3 +141,22 @@ def test_admin_login_shares_pin_lockout(client):
     assert "Příliš mnoho pokusů" in r.text
     r = client.post("/unlock", data={"domain": "x.cz", "pin": "4242", "minutes": 15})
     assert "Příliš mnoho pokusů" in r.text
+
+
+def test_old_portal_local_dns_removed(admin, pihole, monkeypatch):
+    from pin_manager import pihole as ph
+
+    monkeypatch.setattr(ph, "_own_ip", lambda base: "192.168.39.207")
+    pihole.hosts = [
+        "192.168.39.207 www.centrum.cz",  # míří na tento kontejner
+        "10.0.0.9 m.youtube.com",  # spravovaná doména (poddoména)
+        "192.168.39.10 nas.lan",  # cizí záznam – zůstane
+    ]
+    admin.post("/admin/add", data={"domain": "youtube.com"})
+    assert pihole.hosts == ["192.168.39.10 nas.lan"]
+
+
+def test_granted_domain_has_link(admin):
+    admin.post("/admin/add", data={"domain": "youtube.com"})
+    admin.post("/unlock", data={"domain": "youtube.com", "pin": "4242", "minutes": 15})
+    assert 'href="https://youtube.com/"' in admin.get("/").text

@@ -17,6 +17,7 @@ class FakePiHole:
     def __init__(self):
         self.lists = {k: {} for k in ("deny/regex", "deny/exact", "allow/exact", "allow/regex")}
         self.fail = False
+        self.hosts: list[str] = []  # Local DNS (config dns.hosts)
 
     def ours(self, kind="deny/regex"):
         return set(self.lists[kind])
@@ -51,6 +52,16 @@ class FakePiHole:
                 return httpx.Response(204)
             return httpx.Response(405)
 
+        def hosts(request):
+            if request.method == "GET":
+                return httpx.Response(200, json={"config": {"dns": {"hosts": list(self.hosts)}}})
+            entry = unquote(request.url.raw_path.decode().rsplit("/", 1)[1])
+            if entry in self.hosts:
+                self.hosts.remove(entry)
+                return httpx.Response(204)
+            return httpx.Response(404)
+
+        router.route(url__startswith=f"{base}/config/dns/hosts").mock(side_effect=hosts)
         router.post(f"{base}/auth").mock(side_effect=auth)
         router.delete(f"{base}/auth").mock(return_value=httpx.Response(204))
         router.post(f"{base}/action/restartdns").mock(return_value=httpx.Response(200))

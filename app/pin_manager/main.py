@@ -1,4 +1,4 @@
-"""PIN manažer: stránka, kde se PINem dočasně povolí doména blokovaná v Pi-hole."""
+"""Internet access: stránka, kde se PINem dočasně povolí doména blokovaná v Pi-hole."""
 
 from __future__ import annotations
 
@@ -39,7 +39,8 @@ sync_state: dict = {"ok": None, "error": "", "at": 0.0}
 async def sync_now() -> None:
     """Promítne aktuální stav (blokované domény) do Pi-hole."""
     try:
-        await pihole.sync(get_store().blocked())
+        store = get_store()
+        await pihole.sync(store.blocked(), store.blacklist())
         sync_state.update(ok=True, error="", at=time.time())
     except Exception as e:
         sync_state.update(ok=False, error=str(e), at=time.time())
@@ -71,7 +72,7 @@ async def lifespan(app: FastAPI):
         await task
 
 
-app = FastAPI(title="PIN manažer", lifespan=lifespan)
+app = FastAPI(title="Internet access", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 
@@ -105,14 +106,16 @@ async def health():
 
 
 @app.get("/")
-async def home(request: Request, message: str = "", error: str = ""):
+async def home(request: Request, message: str = "", error: str = "", opened: str = ""):
     store = get_store()
+    grants = store.active_grants()
     return templates.TemplateResponse(
         request,
         "pin.html",
         {
             "blocked": store.blocked(),
-            "grants": sorted(store.active_grants().items()),
+            "grants": sorted(grants.items()),
+            "opened": opened if opened in grants else "",
             "durations": get_settings().duration_minutes_list,
             "message": message,
             "error": error,
@@ -141,7 +144,7 @@ async def unlock(request: Request, domain: str = Form(...), pin: str = Form(...)
         store.set_grant(domain, None)
         return _redirect("/", error=f"Pi-hole se nepodařilo upravit: {e}")
     logger.info("Povoleno %s na %s min (z %s)", domain, minutes, ip)
-    return _redirect("/", message=f"{domain} je povolená na {minutes} min. Obnovte stránku v prohlížeči.")
+    return _redirect("/", message=f"{domain} je povolená na {minutes} min.", opened=domain)
 
 
 # ---------- Správa ----------
