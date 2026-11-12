@@ -27,10 +27,9 @@ Proměnné (viz `.env.example`):
 | `PIN` | PIN pro povolení stránky a zároveň přihlášení do správy |
 | `DURATION_OPTIONS` | nabízené doby v minutách, výchozí `15,30,60,120` |
 
-- **Portainer (macvlan):** `portainer-stack.yml`. Kontejner dostane IP `VLAN_IP` ve stávající
-  síti `docker_vlan` a stránka běží na `http://192.168.39.207/`.
-- **Obyčejný Docker:** `docker compose up -d --build` s `docker-compose.yml`. Stránka běží na
-  `http://IP-HOSTITELE:8080/`.
+Portainer stack z Gitu, compose path `docker-compose.yml`. Kontejner dostane IP `VLAN_IP`
+ve stávající macvlan síti `docker_vlan` a stránka běží na `http://192.168.39.207/`
+(na hostiteli se nemapují žádné porty).
 
 Stav (seznam domén, povolení) je ve volume `/data/state.json`.
 

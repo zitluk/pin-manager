@@ -24,10 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compose soubory
-        run: |
-          docker compose -f docker-compose.yml config >/dev/null
-          docker compose -f portainer-stack.yml config >/dev/null
+      - name: Compose soubor
+        run: docker compose -f docker-compose.yml config >/dev/null
       - name: Build + /health
         run: |
           docker build -t pin-manager:ci ./app

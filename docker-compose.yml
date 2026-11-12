@@ -1,12 +1,13 @@
-# Nejjednodušší nasazení: stránka na http://IP-HOSTITELE:8080/
+# Portainer stack (Git, compose path: docker-compose.yml).
+# Kontejner dostane vlastní IP v LAN přes existující macvlan síť – stránka běží na http://VLAN_IP/.
+# Žádné porty na hostiteli se nemapují.
 
 services:
   pin-manager:
     build: ./app
+    pull_policy: build  # image se staví z ./app, z registru se nic nestahuje
     container_name: pin-manager
     restart: unless-stopped
-    ports:
-      - "${HOST_PORT:-8080}:80"
     environment:
       TZ: Europe/Prague
       PIHOLE_URL: ${PIHOLE_URL}
@@ -15,6 +16,14 @@ services:
       DURATION_OPTIONS: ${DURATION_OPTIONS:-15,30,60,120}
     volumes:
       - pin-manager-data:/data
+    networks:
+      lan:
+        ipv4_address: ${VLAN_IP:-192.168.39.207}
+
+networks:
+  lan:
+    external: true
+    name: ${MACVLAN_NETWORK_NAME:-docker_vlan}
 
 volumes:
   pin-manager-data:
