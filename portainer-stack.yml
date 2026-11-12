@@ -5,8 +5,7 @@
 services:
   pin-manager:
     build: ./app
-    image: pin-manager:latest
-    pull_policy: build
+    pull_policy: build  # image se staví z ./app, z registru se nic nestahuje
     container_name: pin-manager
     restart: unless-stopped
     environment:
