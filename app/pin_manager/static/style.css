@@ -32,6 +32,8 @@ input[type=text], input[type=password], select {
 .row { display: flex; gap: .5rem; }
 .row input { margin: 0; }
 .row .btn { width: auto; }
+.extra { margin-top: .5rem; font-size: .9rem; }
+.alts { display: block; color: var(--muted); font-size: .8rem; word-break: break-word; }
 .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
 .link.danger { color: var(--err); }
 @media (prefers-color-scheme: dark) { .link.danger { color: #fca5a5; } }

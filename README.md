@@ -7,6 +7,9 @@ může je na chvíli povolit.
 
 1. Ve **správě** (`/admin`, přihlášení stejným PINem) přidáte domény, např. `youtube.com`.
    Pin-manager je zapíše do Pi-hole jako regex `(\.|^)youtube\.com$` (blokuje se i každá poddoména).
+   Známé **alternativy** se přidají samy (u YouTube např. `googlevideo.com`, `ytimg.com`, `youtu.be`,
+   seznam je v `app/pin_manager/aliases.py`) a další lze zadat ručně. Doména se blokuje
+   i povoluje vždy spolu se svými alternativami.
 2. Kdo chce stránku použít, otevře **hlavní stránku** pin-manageru, vybere doménu
    a dobu (15/30/60/120 min) a zadá **PIN**.
 3. Pin-manager pravidlo v Pi-hole dočasně smaže a po vypršení ho vrátí (kontrola každých 30 s).

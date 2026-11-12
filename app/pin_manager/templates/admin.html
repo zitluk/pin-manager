@@ -6,16 +6,22 @@
 {% block content %}
 <section class="card">
   <h1>Blokované domény</h1>
-  <form method="post" action="/admin/add" class="row">
-    <input name="domain" type="text" placeholder="youtube.com" required />
-    <button type="submit" class="btn">Přidat</button>
+  <form method="post" action="/admin/add">
+    <div class="row">
+      <input name="domain" type="text" placeholder="youtube.com" required />
+      <button type="submit" class="btn">Přidat</button>
+    </div>
+    <input name="extra" type="text" class="extra" placeholder="Další alternativy (nepovinné), např. ytimg.com, youtu.be" />
   </form>
-  <p class="muted">Blokuje se doména i všechny její poddomény.</p>
+  <p class="muted">Blokuje se doména i všechny její poddomény. Známé alternativy (CDN, krátké odkazy)
+    se přidají samy a blokují i povolují se spolu s doménou. Další alternativy k existující
+    doméně doplníte zadáním její domény znovu.</p>
   {% if blacklist %}
   <ul class="list">
     {% for d in blacklist %}
     <li>
-      <span>{{ d }}{% if d in grants %} <span class="tag">povoleno do {{ grants[d]|time }}</span>{% endif %}</span>
+      <span>{{ d }}{% if d in grants %} <span class="tag">povoleno do {{ grants[d]|time }}</span>{% endif %}
+        {% if aliases[d] %}<span class="alts">+ {{ aliases[d]|join(", ") }}</span>{% endif %}</span>
       <span class="actions">
         {% if d in grants %}
         <form method="post" action="/admin/revoke"><input type="hidden" name="domain" value="{{ d }}" /><button type="submit" class="link">Zrušit povolení</button></form>

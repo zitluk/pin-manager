@@ -5,7 +5,10 @@ import pytest
 from pin_manager.pihole import BYPASS_RULES, block_rule
 from pin_manager.store import get_store, normalize_domain
 
+from pin_manager.aliases import known_aliases
+
 YT = block_rule("youtube.com")
+YT_ALL = {block_rule(d) for d in ["youtube.com", *known_aliases("youtube.com")]}
 
 
 @pytest.mark.parametrize(
@@ -46,7 +49,7 @@ def test_admin_wrong_password(client):
 def test_add_domain_blocks_in_pihole(admin, pihole):
     r = admin.post("/admin/add", data={"domain": "https://www.youtube.com/"})
     assert "Blokováno: youtube.com" in r.text
-    assert pihole.ours() == {YT, *BYPASS_RULES}
+    assert pihole.ours() == {*YT_ALL, *BYPASS_RULES}
     assert pihole.lists["deny/regex"][YT] == "pin-manager"
 
 
@@ -171,3 +174,41 @@ def test_pihole_session_reused_and_renewed(admin, pihole):
     admin.post("/admin/revoke", data={"domain": "youtube.com"})
     assert pihole.logins == 2
     assert YT in pihole.ours()
+
+
+def test_unlock_includes_alternatives(admin, pihole):
+    admin.post("/admin/add", data={"domain": "youtube.com"})
+    assert block_rule("googlevideo.com") in pihole.ours()
+    admin.post("/unlock", data={"domain": "youtube.com", "pin": "4242", "minutes": 15})
+    assert not (YT_ALL & pihole.ours())
+    admin.post("/admin/revoke", data={"domain": "youtube.com"})
+    assert YT_ALL <= pihole.ours()
+
+
+def test_alias_added_from_either_side_and_extra(admin, pihole):
+    admin.post("/admin/add", data={"domain": "twitter.com", "extra": "https://abs.twimg.com/, xx"})
+    store = get_store()
+    assert store.blacklist() == ["twitter.com"]
+    assert "x.com" in store.aliases()["twitter.com"]
+    assert "abs.twimg.com" in store.aliases()["twitter.com"]
+    r = admin.post("/admin/add", data={"domain": "x.com"})
+    assert "už je alternativou k twitter.com" in r.text
+
+    admin.post("/admin/add", data={"domain": "centrum.cz", "extra": "centrum.sk"})
+    assert store.aliases()["centrum.cz"] == ["centrum.sk"]
+    admin.post("/admin/add", data={"domain": "centrum.cz", "extra": "atlas.cz"})
+    assert store.aliases()["centrum.cz"] == ["centrum.sk", "atlas.cz"]
+
+
+def test_old_separate_entries_folded(client, tmp_path):
+    import json
+
+    (tmp_path / "state.json").write_text(json.dumps({
+        "blacklist": ["centrum.cz", "googlevideo.com", "youtube-nocookie.com", "youtube.com", "ytimg.com"],
+        "grants": {"googlevideo.com": time.time() + 600},
+    }))
+    store = get_store()
+    assert store.blacklist() == ["centrum.cz", "youtube.com"]
+    assert "googlevideo.com" in store.aliases()["youtube.com"]
+    assert store.active_grants() == {}
+    assert "googlevideo.com" in store.blocked_hosts()

@@ -40,7 +40,7 @@ async def sync_now() -> None:
     """Promítne aktuální stav (blokované domény) do Pi-hole."""
     try:
         store = get_store()
-        await pihole.sync(store.blocked(), store.blacklist())
+        await pihole.sync(store.blocked_hosts(), store.all_hosts())
         sync_state.update(ok=True, error="", at=time.time())
     except Exception as e:
         sync_state.update(ok=False, error=str(e), at=time.time())
@@ -52,7 +52,7 @@ async def _sync_loop() -> None:
     last_blocked: list[str] | None = None
     last_full = 0.0
     while True:
-        blocked = get_store().blocked()
+        blocked = get_store().blocked_hosts()
         due = time.time() - last_full >= get_settings().pihole_resync_seconds
         if blocked != last_blocked or due or not sync_state["ok"]:
             try:
@@ -114,6 +114,7 @@ async def home(request: Request, message: str = "", error: str = "", opened: str
         "pin.html",
         {
             "blocked": store.blocked(),
+            "aliases": store.aliases(),
             "grants": sorted(grants.items()),
             "opened": opened if opened in grants else "",
             "durations": get_settings().duration_minutes_list,
@@ -162,6 +163,7 @@ async def admin(request: Request, message: str = "", error: str = ""):
         "admin.html",
         {
             "blacklist": store.blacklist(),
+            "aliases": store.aliases(),
             "grants": store.active_grants(),
             "sync": sync_state,
             "pihole_url": get_settings().pihole_url,
@@ -208,9 +210,9 @@ async def _admin_action(request: Request, action, ok_message: str) -> RedirectRe
 
 
 @app.post("/admin/add")
-async def admin_add(request: Request, domain: str = Form(...)):
+async def admin_add(request: Request, domain: str = Form(...), extra: str = Form("")):
     d = normalize_domain(domain)
-    return await _admin_action(request, lambda: get_store().add(domain), f"Blokováno: {d}")
+    return await _admin_action(request, lambda: get_store().add(domain, extra), f"Blokováno: {d}")
 
 
 @app.post("/admin/remove")

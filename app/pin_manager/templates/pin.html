@@ -9,7 +9,7 @@
   <form method="post" action="/unlock">
     <label for="domain">Stránka</label>
     <select id="domain" name="domain" required>
-      {% for d in blocked %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      {% for d in blocked %}<option value="{{ d }}">{{ d }}{% if aliases[d] %} (+ {{ aliases[d]|length }} souvisejících){% endif %}</option>{% endfor %}
     </select>
 
     <label>Na jak dlouho</label>
