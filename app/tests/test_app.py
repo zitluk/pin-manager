@@ -160,3 +160,14 @@ def test_granted_domain_has_link(admin):
     admin.post("/admin/add", data={"domain": "youtube.com"})
     admin.post("/unlock", data={"domain": "youtube.com", "pin": "4242", "minutes": 15})
     assert 'href="https://youtube.com/"' in admin.get("/").text
+
+
+def test_pihole_session_reused_and_renewed(admin, pihole):
+    admin.post("/admin/add", data={"domain": "youtube.com"})
+    admin.post("/unlock", data={"domain": "youtube.com", "pin": "4242", "minutes": 15})
+    assert pihole.logins == 1  # druhá změna už bez nového přihlášení
+
+    pihole.sessions.clear()  # session v Pi-hole vypršela
+    admin.post("/admin/revoke", data={"domain": "youtube.com"})
+    assert pihole.logins == 2
+    assert YT in pihole.ours()

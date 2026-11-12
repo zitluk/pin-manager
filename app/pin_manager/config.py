@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     pin: str = ""
     duration_options: str = "15,30,60,120"
     data_dir: str = "/data"
-    # Po změně pravidel vyprázdnit DNS cache Pi-hole, ať změna platí hned
-    pihole_restart_dns: bool = True
+    # Restart DNS po změně – Pi-hole v6 po úpravě seznamu domén obnoví cache sám a restart
+    # na chvíli přeruší odpovědi DNS (zařízení si chybu zapamatuje), proto vypnuto
+    pihole_restart_dns: bool = False
     # Jak často pravidla v Pi-hole ověřit a doplnit (po výpadku, reinstalaci)
     pihole_resync_seconds: int = 300
     # NXDOMAIN pro iCloud Soukromý přenos a DoH ve Firefoxu – jinak obcházejí Pi-hole

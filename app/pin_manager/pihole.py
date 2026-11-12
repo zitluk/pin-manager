@@ -10,6 +10,7 @@ import asyncio
 import logging
 import re
 import socket
+import time
 from urllib.parse import quote
 
 import httpx
@@ -28,6 +29,9 @@ BYPASS_RULES = (
 
 _lock = asyncio.Lock()
 _legacy_cleaned = False
+# Přihlášení se drží mezi synchronizacemi – login v Pi-hole v6 je záměrně pomalý
+# (hash hesla, na RPi ~1 s). Pravidelný sync každých 5 min session udržuje naživu.
+_sid = ""
 
 
 def block_rule(domain: str) -> str:
@@ -46,30 +50,35 @@ class PiHole:
         s = get_settings()
         self.base = s.pihole_url.rstrip("/") + "/api"
         self.http = client
-        self.sid = ""
+        self.logins = 0
 
     async def login(self) -> None:
+        global _sid
+        _sid = ""
+        self.logins += 1
         r = await self.http.post(f"{self.base}/auth", json={"password": get_settings().pihole_password})
         if r.status_code == 401:
             raise RuntimeError("Pi-hole: špatné heslo")
         if r.status_code == 429:
             raise RuntimeError("Pi-hole: příliš mnoho přihlášení k API, zkuste to za chvíli")
         r.raise_for_status()
-        self.sid = (r.json().get("session") or {}).get("sid") or ""
-        if not self.sid:
+        _sid = (r.json().get("session") or {}).get("sid") or ""
+        if not _sid:
             raise RuntimeError("Pi-hole: přihlášení nevrátilo session")
-        self.http.headers["X-FTL-SID"] = self.sid
 
-    async def logout(self) -> None:
-        if self.sid:
-            try:
-                await self.http.delete(f"{self.base}/auth")
-            except httpx.HTTPError as e:
-                logger.debug("Pi-hole logout: %s", e)
+    async def request(self, method: str, path: str, **kw) -> httpx.Response:
+        """Požadavek s uloženou session; když vypršela (401), přihlásí se a zkusí znovu."""
+        if not _sid:
+            await self.login()
+        r = await self.http.request(method, self.base + path, headers={"X-FTL-SID": _sid}, **kw)
+        if r.status_code == 401:
+            await self.login()
+            r = await self.http.request(method, self.base + path, headers={"X-FTL-SID": _sid}, **kw)
+        return r
 
     async def list_ours(self, kind: str) -> set[str]:
         """kind = deny/regex, deny/exact, allow/exact, allow/regex."""
-        r = await self.http.get(f"{self.base}/domains/{kind}")
+        r = await self.request("GET", f"/domains/{kind}")
         r.raise_for_status()
         return {
             item["domain"]
@@ -78,19 +87,19 @@ class PiHole:
         }
 
     async def add(self, kind: str, domain: str) -> None:
-        r = await self.http.post(
-            f"{self.base}/domains/{kind}", json={"domain": domain, "comment": COMMENT, "groups": [0]}
+        r = await self.request(
+            "POST", f"/domains/{kind}", json={"domain": domain, "comment": COMMENT, "groups": [0]}
         )
         if r.status_code >= 400:
             raise RuntimeError(f"Pi-hole nepřijal {domain}: {r.status_code} {r.text[:200]}")
 
     async def delete(self, kind: str, domain: str) -> None:
-        r = await self.http.delete(f"{self.base}/domains/{kind}/{quote(domain, safe='')}")
+        r = await self.request("DELETE", f"/domains/{kind}/{quote(domain, safe='')}")
         if r.status_code >= 400 and r.status_code != 404:
             raise RuntimeError(f"Pi-hole nesmazal {domain}: {r.status_code} {r.text[:200]}")
 
     async def restart_dns(self) -> None:
-        r = await self.http.post(f"{self.base}/action/restartdns")
+        r = await self.request("POST", "/action/restartdns")
         if r.status_code >= 400:
             logger.warning("Pi-hole restartdns: %s %s", r.status_code, r.text[:200])
 
@@ -110,7 +119,7 @@ class PiHole:
         „odmítl připojení“. Maže jen záznamy pro spravované domény (a poddomény)
         nebo mířící na IP tohoto kontejneru.
         """
-        r = await self.http.get(f"{self.base}/config/dns/hosts")
+        r = await self.request("GET", "/config/dns/hosts")
         r.raise_for_status()
         cfg = r.json().get("config", {})
         hosts = (cfg.get("dns") or {}).get("hosts") or []
@@ -121,7 +130,7 @@ class PiHole:
                 continue
             ip, *names = entry.split()
             if ip == own_ip or any(_under(n.lower().rstrip("."), domains) for n in names):
-                d = await self.http.delete(f"{self.base}/config/dns/hosts/{quote(entry, safe='')}")
+                d = await self.request("DELETE", f"/config/dns/hosts/{quote(entry, safe='')}")
                 if d.status_code >= 400 and d.status_code != 404:
                     raise RuntimeError(f"Pi-hole nesmazal Local DNS {entry}: {d.status_code}")
                 logger.info("Smazán starý Local DNS záznam: %s", entry)
@@ -164,21 +173,23 @@ async def _sync(blocked: list[str], managed: list[str]) -> bool:
     global _legacy_cleaned
     desired = desired_rules(blocked)
     async with _lock, httpx.AsyncClient(timeout=30) as client:
+        started = time.monotonic()
         ph = PiHole(client)
-        await ph.login()
-        try:
-            existing = await ph.list_ours("deny/regex")
-            for rule in sorted(existing - desired):
-                await ph.delete("deny/regex", rule)
-            for rule in sorted(desired - existing):
-                await ph.add("deny/regex", rule)
-            changed = existing != desired
-            changed = await ph.cleanup_portal_hosts(managed) or changed
-            if not _legacy_cleaned:
-                changed = await ph.cleanup_legacy() or changed
-                _legacy_cleaned = True
-            if changed and get_settings().pihole_restart_dns:
-                await ph.restart_dns()
-            return changed
-        finally:
-            await ph.logout()
+        existing = await ph.list_ours("deny/regex")
+        for rule in sorted(existing - desired):
+            await ph.delete("deny/regex", rule)
+        for rule in sorted(desired - existing):
+            await ph.add("deny/regex", rule)
+        changed = existing != desired
+        changed = await ph.cleanup_portal_hosts(managed) or changed
+        if not _legacy_cleaned:
+            changed = await ph.cleanup_legacy() or changed
+            _legacy_cleaned = True
+        if changed and get_settings().pihole_restart_dns:
+            await ph.restart_dns()
+        if changed or ph.logins:
+            logger.info(
+                "Pi-hole sync %.2f s (změna: %s, přihlášení: %d)",
+                time.monotonic() - started, "ano" if changed else "ne", ph.logins,
+            )
+        return changed

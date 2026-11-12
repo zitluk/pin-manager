@@ -18,6 +18,8 @@ class FakePiHole:
         self.lists = {k: {} for k in ("deny/regex", "deny/exact", "allow/exact", "allow/regex")}
         self.fail = False
         self.hosts: list[str] = []  # Local DNS (config dns.hosts)
+        self.logins = 0
+        self.sessions: set[str] = set()
 
     def ours(self, kind="deny/regex"):
         return set(self.lists[kind])
@@ -31,9 +33,23 @@ class FakePiHole:
         def auth(request):
             if self.fail:
                 return httpx.Response(500, text="down")
-            return httpx.Response(200, json={"session": {"sid": "sid1"}})
+            self.logins += 1
+            sid = f"sid{self.logins}"
+            self.sessions.add(sid)
+            return httpx.Response(200, json={"session": {"sid": sid}})
+
+        def authorized(request):
+            return request.headers.get("X-FTL-SID") in self.sessions
+
+        def down(request):
+            if self.fail:
+                return httpx.Response(500, text="down")
 
         def handle(request):
+            if (r := down(request)):
+                return r
+            if not authorized(request):
+                return httpx.Response(401, json={"error": {"key": "unauthorized"}})
             path = request.url.raw_path.decode().split("?")[0][len("/api/domains/"):]
             parts = path.split("/", 2)
             kind = "/".join(parts[:2])
@@ -53,6 +69,10 @@ class FakePiHole:
             return httpx.Response(405)
 
         def hosts(request):
+            if (r := down(request)):
+                return r
+            if not authorized(request):
+                return httpx.Response(401)
             if request.method == "GET":
                 return httpx.Response(200, json={"config": {"dns": {"hosts": list(self.hosts)}}})
             entry = unquote(request.url.raw_path.decode().rsplit("/", 1)[1])
@@ -86,6 +106,7 @@ def client(tmp_path, monkeypatch, pihole):
 
     get_settings.cache_clear()
     monkeypatch.setattr(ph, "_legacy_cleaned", False)
+    monkeypatch.setattr(ph, "_sid", "")
     monkeypatch.setattr(main, "lockout", main.Lockout())
     from fastapi.testclient import TestClient
 
