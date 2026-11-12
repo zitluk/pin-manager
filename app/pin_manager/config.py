@@ -10,37 +10,16 @@ class Settings(BaseSettings):
 
     pihole_url: str = "http://127.0.0.1"
     pihole_password: str = ""
+    # PIN: dočasné povolení domény (stránka /) a zároveň přihlášení do správy (/admin)
     pin: str = ""
-    pin_hash: str = ""
     duration_options: str = "15,30,60,120"
-    dnsmasq_sinkhole_path: str = "/sync/pin-sinkhole.conf"
-    pihole_restart_dns: bool = True
-    # api = Local DNS přes Pi-hole API (bez sdíleného souboru); file = dnsmasq sync
-    pihole_sinkhole_mode: str = "both"
-    # V režimu both: bez API sync blokování v Pi-hole typicky nefunguje (soubor musí mountovat Pi-hole).
-    pihole_require_api: bool = True
-    # true = YouTube/HSTS jen „nejde načíst“ (PIN jen na PORTAL_IP). false = DNS → portál + PIN na doméně (s CA).
-    sinkhole_https_silent: bool = False  # env: SINKHOLE_HTTPS_SILENT
-    # Všechny blokované domény jen „nejde načíst“ (žádný falešný certifikát) – PIN jen na PORTAL_IP.
-    sinkhole_all_silent: bool = False  # true = jen „nejde načíst“, bez PIN na doméně
-    portal_tls_auto: bool = True  # env: PORTAL_TLS_AUTO – cert se SAN pro blacklist
-    portal_https: bool = True  # env: PORTAL_HTTPS – TLS :443 s domácí CA
-    # Další domény k tichému bloku (čárkou), jen když SINKHOLE_HTTPS_SILENT=true
-    sinkhole_silent_domains: str = ""  # env: SINKHOLE_SILENT_DOMAINS
-    # NXDOMAIN pro iCloud Private Relay a Firefox DoH canary – jinak zařízení obchází Pi-hole
-    block_dns_bypass: bool = True  # env: BLOCK_DNS_BYPASS
-    # Jak často pin-manager ověří/doplní pravidla v Pi-hole (po výpadku, reinstalaci)
-    pihole_resync_seconds: int = 300  # env: PIHOLE_RESYNC_SECONDS
-    admin_token: str = ""
-    session_secret: str = ""
-    portal_ip: str = ""
-    deploy_mode: str = "bridge"
-    host_port: str = "80"
-    listen_port: str = "8080"
-    preview_enabled: bool = False
-    audit_log_max_lines: int = 5000
-    audit_log_display_limit: int = 250
     data_dir: str = "/data"
+    # Po změně pravidel vyprázdnit DNS cache Pi-hole, ať změna platí hned
+    pihole_restart_dns: bool = True
+    # Jak často pravidla v Pi-hole ověřit a doplnit (po výpadku, reinstalaci)
+    pihole_resync_seconds: int = 300
+    # NXDOMAIN pro iCloud Soukromý přenos a DoH ve Firefoxu – jinak obcházejí Pi-hole
+    block_dns_bypass: bool = True
     max_pin_attempts: int = 5
     lockout_seconds: int = 300
 

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Povolit stránku</h1>
+  {% if blocked %}
+  <form method="post" action="/unlock">
+    <label for="domain">Stránka</label>
+    <select id="domain" name="domain" required>
+      {% for d in blocked %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+    </select>
+
+    <label>Na jak dlouho</label>
+    <div class="chips">
+      {% for m in durations %}
+      <label class="chip"><input type="radio" name="minutes" value="{{ m }}" {% if loop.first %}checked{% endif %} required /> {{ m }} min</label>
+      {% endfor %}
+    </div>
+
+    <label for="pin">PIN</label>
+    <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" required />
+
+    <button type="submit" class="btn">Povolit</button>
+  </form>
+  {% else %}
+  <p class="muted">Žádná stránka teď není blokovaná.</p>
+  {% endif %}
+</section>
+
+{% if grants %}
+<section class="card">
+  <h2>Právě povoleno</h2>
+  <ul class="list">
+    {% for d, ts in grants %}<li><span>{{ d }}</span><span class="muted">do {{ ts|time }}</span></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

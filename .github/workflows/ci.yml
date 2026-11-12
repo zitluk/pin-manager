@@ -1,4 +1,4 @@
-name: CI – testy a compose
+name: CI
 
 on:
   push:
@@ -11,39 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pytest (Python 3.12 – stejné jako produkční image)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pytest
+        working-directory: app
         run: |
-          docker run --rm -v "$PWD/app:/app" -w /app python:3.12-slim bash -ec '
-            pip install -q -r requirements-dev.txt
-            pytest -q
-          '
+          pip install -q -r requirements-dev.txt
+          pytest -q
 
-  compose-validate:
+  docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: docker compose config
+      - name: Compose soubory
         run: |
+          docker compose -f docker-compose.yml config >/dev/null
           docker compose -f portainer-stack.yml config >/dev/null
-          docker compose -f portainer-stack.vlan.yml config >/dev/null
-          docker compose -f compose.dev.yml config >/dev/null
-
-  docker-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t pin-manager:ci ./app
-      - name: Smoke – health endpoint
+      - name: Build + /health
         run: |
-          docker run -d --name pin-smoke -p 9876:8080 \
-            -e LISTEN_PORT=8080 \
-            -e PORTAL_IP= \
-            -e PIHOLE_SINKHOLE_MODE=file \
-            -e PIHOLE_RESTART_DNS=false \
-            -e PIN=1234 \
-            -e SESSION_SECRET=ci \
-            pin-manager:ci
+          docker build -t pin-manager:ci ./app
+          docker run -d --name pin-smoke -p 9876:80 -e PIN=1234 pin-manager:ci
           sleep 3
           curl -fsS http://127.0.0.1:9876/health | grep -q '"status":"ok"'
           docker rm -f pin-smoke

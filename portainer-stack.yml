@@ -1,52 +1,28 @@
-# Portainer Git stack – Lukas: macvlan docker_vlan, IP 192.168.39.207, bez mapování portů na hostitele.
-# Compose path v Portaineru: portainer-stack.yml
+# Portainer (Git stack, compose path: portainer-stack.yml).
+# Kontejner dostane vlastní IP v LAN přes existující macvlan síť – stránka pak běží na http://VLAN_IP/.
+# Bez macvlan použijte docker-compose.yml (port na hostiteli).
 
 services:
   pin-manager:
-    build:
-      context: ./app
-      dockerfile: Dockerfile
+    build: ./app
     image: pin-manager:latest
     pull_policy: build
     container_name: pin-manager
     restart: unless-stopped
     environment:
       TZ: Europe/Prague
-      LISTEN_PORT: "80"
-      DEPLOY_MODE: vlan
-      PORTAL_IP: ${PORTAL_IP:-192.168.39.207}
-      VLAN_IP: ${VLAN_IP:-192.168.39.207}
-      MACVLAN_NETWORK_NAME: ${MACVLAN_NETWORK_NAME:-docker_vlan}
       PIHOLE_URL: ${PIHOLE_URL}
       PIHOLE_PASSWORD: ${PIHOLE_PASSWORD}
       PIN: ${PIN}
-      PIN_HASH: ${PIN_HASH:-}
       DURATION_OPTIONS: ${DURATION_OPTIONS:-15,30,60,120}
-      DNSMASQ_SINKHOLE_PATH: /sync/pin-sinkhole.conf
-      PIHOLE_RESTART_DNS: ${PIHOLE_RESTART_DNS:-true}
-      PIHOLE_SINKHOLE_MODE: ${PIHOLE_SINKHOLE_MODE:-both}
-      PIHOLE_REQUIRE_API: ${PIHOLE_REQUIRE_API:-true}
-      PORTAL_HTTPS: ${PORTAL_HTTPS:-true}
-      PORTAL_TLS_AUTO: ${PORTAL_TLS_AUTO:-true}
-      SINKHOLE_HTTPS_SILENT: ${SINKHOLE_HTTPS_SILENT:-false}
-      SINKHOLE_SILENT_DOMAINS: ${SINKHOLE_SILENT_DOMAINS:-}
-      SINKHOLE_ALL_SILENT: ${SINKHOLE_ALL_SILENT:-false}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
-      SESSION_SECRET: ${SESSION_SECRET:-}
     volumes:
       - pin-manager-data:/data
-      - type: bind
-        source: ${DNSMASQ_SYNC_HOST_PATH:-/opt/pin-manager/dnsmasq-sync}
-        target: /sync
-        bind:
-          create_host_path: true
     networks:
-      pin_macvlan:
+      lan:
         ipv4_address: ${VLAN_IP:-192.168.39.207}
 
 networks:
-  # Jedna macvlan síť na hostiteli (192.168.39.0/24) – vytvořte před deployem, viz scripts/create-docker-vlan.sh
-  pin_macvlan:
+  lan:
     external: true
     name: ${MACVLAN_NETWORK_NAME:-docker_vlan}
 

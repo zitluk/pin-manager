@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Správa – PIN manažer{% endblock %}
+{% block nav %}
+<form method="post" action="/admin/logout"><button type="submit" class="link">Odhlásit</button></form>
+{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Blokované domény</h1>
+  <form method="post" action="/admin/add" class="row">
+    <input name="domain" type="text" placeholder="youtube.com" required />
+    <button type="submit" class="btn">Přidat</button>
+  </form>
+  <p class="muted">Blokuje se doména i všechny její poddomény.</p>
+  {% if blacklist %}
+  <ul class="list">
+    {% for d in blacklist %}
+    <li>
+      <span>{{ d }}{% if d in grants %} <span class="tag">povoleno do {{ grants[d]|time }}</span>{% endif %}</span>
+      <span class="actions">
+        {% if d in grants %}
+        <form method="post" action="/admin/revoke"><input type="hidden" name="domain" value="{{ d }}" /><button type="submit" class="link">Zrušit povolení</button></form>
+        {% endif %}
+        <form method="post" action="/admin/remove"><input type="hidden" name="domain" value="{{ d }}" /><button type="submit" class="link danger">Odebrat</button></form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Zatím nic.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Pi-hole</h2>
+  <p><code>{{ pihole_url }}</code> –
+    {% if sync.ok %}<span class="tag ok">v pořádku</span> {{ sync.at|time }}
+    {% elif sync.ok is none %}<span class="muted">zatím nesynchronizováno</span>
+    {% else %}<span class="tag err">chyba</span> {{ sync.error }}{% endif %}
+  </p>
+  <form method="post" action="/admin/sync"><button type="submit" class="btn secondary">Synchronizovat teď</button></form>
+</section>
+{% endblock %}
